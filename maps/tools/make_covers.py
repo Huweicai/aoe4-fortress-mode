@@ -25,6 +25,7 @@ TERRAIN = {
     "T": (52, 84, 46),
     "#": (96, 86, 80),
     "~": (46, 92, 140),
+    ",": (164, 160, 98),
     "G": (230, 190, 60),
     "S": (176, 176, 184),
 }
@@ -45,6 +46,18 @@ MAPS = {
             ("两个窄口", "Two narrow necks", "左右各一个，一人守一边"),
             ("湖泊环绕", "Lakes all round", "横梁上下都是深湖，可以捕鱼"),
             ("资源充足", "Rich crossbar", "两端各有额外的金矿和石矿"),
+        ],
+    },
+    "fortress_hill": {
+        "seed": 5,
+        "title": "山顶要塞",
+        "title_en": "FORTRESS  HILL",
+        "tagline": "大家一起守中央高地，每人两条相邻的坡道",
+        "tagline_en": "Hold the low plateau together, two close ramps for each defender",
+        "points": [
+            ("一人两口", "Two ramps each", "每位守方一对相邻的坡道"),
+            ("聚在一起", "Together", "守方出生点都在高地中央"),
+            ("四面来敌", "Attacked from all sides", "攻方分布在地图四周"),
         ],
     },
     "fortress_pass": {
@@ -131,10 +144,10 @@ def cover(map_name, info, rows):
         draw.text((x + 32, y + 56), body, font=font(28, FONT_REGULAR), fill=MUTED)
         y += 120
     legend = ((DEFENDER, "守方 Defenders"), (ATTACKER, "攻方 Attackers"), (TERRAIN["~"], "深水 Deep water"),
-              (TERRAIN["#"], "山 Cliffs"), (TERRAIN["G"], "金矿 Gold"), (TERRAIN["S"], "石矿 Stone"))
+              (TERRAIN["#"], "山 Cliffs"), (TERRAIN[","], "高地 Plateau"), (TERRAIN["G"], "金矿 Gold"), (TERRAIN["S"], "石矿 Stone"))
     present = set("".join(rows))
-    legend = [item for item in legend if item[0] not in (TERRAIN["~"], TERRAIN["#"]) or
-              (item[0] == TERRAIN["~"] and "~" in present) or (item[0] == TERRAIN["#"] and "#" in present)]
+    marks = {TERRAIN["~"]: "~", TERRAIN["#"]: "#", TERRAIN[","]: ","}
+    legend = [item for item in legend if item[0] not in marks or marks[item[0]] in present]
     for index, (color, label) in enumerate(legend):
         lx, ly = 1080 + (index % 3) * 260, 880 + (index // 3) * 44
         draw.ellipse([lx, ly, lx + 26, ly + 26], fill=color)
