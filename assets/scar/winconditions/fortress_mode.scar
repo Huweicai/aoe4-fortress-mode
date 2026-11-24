@@ -752,6 +752,77 @@ local function LogForceStatus(force, group, position, target)
 		group == force.army and "army" or "siege", SGroup_CountSpawned(group), FormatPos(position), distance))
 end
 
+-- Siege targets: walls are asked for separately in case the building type leaves them out.
+local SIEGE_TARGET_TYPES = { "building", "wall" }
+
+local function SiegeTargetGroups(players)
+	local groups = { }
+	for _, player in ipairs(players) do
+		for _, type_name in ipairs(SIEGE_TARGET_TYPES) do
+			local ok, group = pcall(Player_GetEntitiesFromType, player.id, type_name)
+			if ok and group ~= nil then
+				table.insert(groups, group)
+			end
+		end
+	end
+	return groups
+end
+
+local function ClosestInGroups(groups, position)
+	local closest, closest_distance = nil, nil
+	for _, group in ipairs(groups) do
+		if EGroup_CountSpawned(group) > 0 then
+			local entity = EGroup_GetClosestEntity(group, position)
+			local distance = World_DistancePointToPoint(position, Entity_GetPosition(entity))
+			if closest == nil or distance < closest_distance then
+				closest, closest_distance = entity, distance
+			end
+		end
+	end
+	return closest
+end
+
+-- A ram sent at a building behind a wall stops at the wall and idles, since an attack order does not break through.
+-- So idle siege is sent at whatever is closest to it, which is usually the wall or gate in its way.
+-- Busy siege is left alone: repeated orders would only make it path again.
+local function OrderIdleSiege(force)
+	local idle = { }
+	SGroup_ForEach(force.siege, function(_, _, squad)
+		if Squad_IsIdle(squad) then
+			table.insert(idle, squad)
+		end
+	end)
+	if #idle == 0 then
+		return
+	end
+	local players = IsLiveEnemyHuman(force.attacker.id, force.target) and { force.target } or LiveEnemyHumans(force.attacker.id)
+	local groups = SiegeTargetGroups(players)
+	local by_target = { }
+	for _, squad in ipairs(idle) do
+		local target = ClosestInGroups(groups, Squad_GetPosition(squad))
+		if target ~= nil then
+			local id = Entity_GetID(target)
+			by_target[id] = by_target[id] or { target = target, squads = { } }
+			table.insert(by_target[id].squads, squad)
+		end
+	end
+	for _, group in ipairs(groups) do
+		EGroup_Destroy(group)
+	end
+	local siege = SGroup_CreateIfNotFound("fort_siege_idle")
+	local orders = 0
+	for _, entry in pairs(by_target) do
+		SGroup_Clear(siege)
+		for _, squad in ipairs(entry.squads) do
+			SGroup_Add(siege, squad)
+		end
+		OrderSiege(siege, entry.target)
+		orders = orders + 1
+	end
+	SGroup_Clear(siege)
+	DebugLog(string.format("player %d -> human %d | %d idle siege sent at %d targets", force.attacker.index, force.target.index, #idle, orders))
+end
+
 -- The building of the last order is kept per group.
 local function OrderIfNeeded(force, group, order)
 	if SGroup_CountSpawned(group) == 0 then
@@ -800,7 +871,7 @@ local function OrderPlayerWaves(player)
 	local all_ok = true
 	for _, force in ipairs(_wave_forces[player.index] or { }) do
 		all_ok = Guard("wave orders", OrderIfNeeded, force, force.army, OrderArmy) and all_ok
-		all_ok = Guard("wave orders", OrderIfNeeded, force, force.siege, OrderSiege) and all_ok
+		all_ok = Guard("wave orders", OrderIdleSiege, force) and all_ok
 	end
 	local assault = _assault_forces[player.index]
 	if assault ~= nil then
