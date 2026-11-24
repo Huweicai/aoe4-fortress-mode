@@ -12,19 +12,19 @@
 
 | 功能 | 默认 | 可选 |
 |---|---|---|
-| 玩家单位血量 | ×2 | ×1 ~ ×5 |
-| 玩家防御建筑血量（城墙、城门、箭塔、前哨、城堡） | ×4 | ×1 ~ ×10 |
+| 玩家单位血量 | ×2 | ×1 ~ ×5（9 档） |
+| 玩家防御建筑血量（城墙、城门、箭塔、前哨、城堡） | ×4 | ×1 ~ ×10（10 档） |
 | 禁用巨型投石机 | 仅 AI | 关 / 仅 AI / 仅玩家 / 所有人 |
-| 玩家人口上限 | 300 | 200 ~ 500 |
-| AI 人口上限 | 200 | 100 ~ 300 |
-| AI 造兵速度 | ×2 | ×1 ~ ×3 |
-| 金矿、石矿储量 | ×2 | ×1 ~ ×5 |
-| 开局村民 | 16 | 6 ~ 30 |
-| 攻城波次规模 | 100 人 | 关 / 50 ~ 200 |
+| 玩家人口上限 | 300 | 200 ~ 500，每档 25～50 |
+| AI 人口上限 | 200 | 100 ~ 300，每档 25 |
+| AI 造兵速度 | ×2 | ×1 ~ ×3（7 档） |
+| 金矿、石矿储量 | ×2 | ×1 ~ ×5（7 档） |
+| 开局村民 | 16 | 6 ~ 30（10 档） |
+| 攻城波次规模 | 100 人 | 关 / 30 ~ 300 |
 | 首波时间 | 10 分钟 | 1（测试）~ 20 分钟 |
-| 波次间隔 | 1 分钟 | 1 ~ 15 分钟 |
-| AI 定期总攻（第 8 分钟起） | 每 2 分钟 | 关 / 1 ~ 10 分钟 |
-| 存活胜利 | 60 分钟 | 关 / 5（测试）~ 120 分钟 |
+| 波次间隔 | 1 分钟 | 30 秒 ~ 15 分钟，最细 10 秒一档 |
+| AI 定期总攻（第 8 分钟起） | 每 2 分钟 | 关 / 1 ~ 10 分钟，最细 30 秒一档 |
+| 存活胜利 | 60 分钟 | 关 / 5（测试）、20 ~ 120 分钟 |
 
 ### 攻城波次怎么运作
 
@@ -61,19 +61,19 @@ This is a **game mode**: pick "Fortress Mode" in a custom lobby. Every standard 
 
 | Feature | Default | Range |
 |---|---|---|
-| Human unit health | ×2 | ×1 – ×5 |
-| Human defense health (walls, gates, towers, outposts, keeps) | ×4 | ×1 – ×10 |
+| Human unit health | ×2 | ×1 – ×5 (9 steps) |
+| Human defense health (walls, gates, towers, outposts, keeps) | ×4 | ×1 – ×10 (10 steps) |
 | Disable trebuchets | AI only | Off / AI only / Humans only / Everyone |
-| Human population cap | 300 | 200 – 500 |
-| AI population cap | 200 | 100 – 300 |
-| AI unit production speed | ×2 | ×1 – ×3 |
-| Gold and stone deposits | ×2 | ×1 – ×5 |
-| Starting villagers | 16 | 6 – 30 |
-| Attack wave size | 100 units | Off / 50 – 200 |
+| Human population cap | 300 | 200 – 500, steps of 25–50 |
+| AI population cap | 200 | 100 – 300, steps of 25 |
+| AI unit production speed | ×2 | ×1 – ×3 (7 steps) |
+| Gold and stone deposits | ×2 | ×1 – ×5 (7 steps) |
+| Starting villagers | 16 | 6 – 30 (10 steps) |
+| Attack wave size | 100 units | Off / 30 – 300 |
 | First wave | 10 min | 1 (test) – 20 min |
-| Wave interval | 1 min | 1 – 15 min |
-| AI all-out attack (from minute 8) | Every 2 min | Off / 1 – 10 min |
-| Survival victory | 60 min | Off / 5 (test) – 120 min |
+| Wave interval | 1 min | 30 s – 15 min, down to 10 s steps |
+| AI all-out attack (from minute 8) | Every 2 min | Off / 1 – 10 min, down to 30 s steps |
+| Survival victory | 60 min | Off / 5 (test), 20 – 120 min |
 
 ### How the waves work
 

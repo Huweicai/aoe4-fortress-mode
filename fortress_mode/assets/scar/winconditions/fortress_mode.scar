@@ -100,6 +100,11 @@ local HUMAN_TREBUCHET_WEAPONS = {
 	"weapon_trebuchet_4_traction_mon", "weapon_trebuchet_4_greek_fire", "weapon_trebuchet_4_grenade_jin",
 	"weapon_trebuchet_naptha_shot_mon_ha_gol",
 }
+-- Hidden: human monks heal fifteen times as fast. The rate is a player property, 7 health a second by default.
+local MONK_HEAL_PROPERTY = "monk_heal_rate"
+local MONK_HEAL_FACTOR = 15
+-- Some techs may set the property again; a lower value than the one given is boosted once more.
+local MONK_HEAL_CHECK_INTERVAL = 10
 local HUMAN_TREBUCHET_MODIFIERS = {
 	{ "damage_weapon_modifier", 3 },
 	{ "range_weapon_modifier", 1.2 },
@@ -124,55 +129,12 @@ local TREBUCHET_ENTITY_TYPES = { "siege", "military", "annihilation_condition" }
 local TREBUCHET_SQUAD_TYPES = { "siege", "military" }
 
 -- Option keys must match tools/gen_mod.py.
-local UNIT_HEALTH_VALUES = {
-	unit_hp_100 = 1, unit_hp_150 = 1.5, unit_hp_200 = 2, unit_hp_300 = 3, unit_hp_400 = 4, unit_hp_500 = 5,
-}
-local DEFENSE_HEALTH_VALUES = {
-	defense_hp_100 = 1, defense_hp_200 = 2, defense_hp_300 = 3, defense_hp_400 = 4,
-	defense_hp_500 = 5, defense_hp_800 = 8, defense_hp_1000 = 10,
-}
 local TREBUCHET_VALUES = {
 	trebuchet_off = TREBUCHET_OFF, trebuchet_ai = TREBUCHET_AI,
 	trebuchet_humans = TREBUCHET_HUMANS, trebuchet_all = TREBUCHET_ALL,
 }
-local HUMAN_POP_VALUES = {
-	human_pop_200 = 200, human_pop_250 = 250, human_pop_300 = 300, human_pop_400 = 400, human_pop_500 = 500,
-}
-local AI_POP_VALUES = {
-	ai_pop_100 = 100, ai_pop_150 = 150, ai_pop_200 = 200, ai_pop_250 = 250, ai_pop_300 = 300,
-}
-
-local AI_PRODUCTION_VALUES = {
-	ai_production_100 = 1, ai_production_125 = 1.25, ai_production_150 = 1.5,
-	ai_production_200 = 2, ai_production_300 = 3,
-}
-
-local SURVIVE_TIME_VALUES = {
-	survive_off = 0, survive_5 = 300, survive_30 = 1800, survive_45 = 2700, survive_60 = 3600, survive_90 = 5400, survive_120 = 7200,
-}
-
-local MINERAL_VALUES = {
-	minerals_100 = 1, minerals_150 = 1.5, minerals_200 = 2, minerals_300 = 3, minerals_500 = 5,
-}
 -- Map gold and stone deposits. Pickups, Malian pit mines and Mongol ovoos are not neutral deposits.
 local MINERAL_DEPOSIT_PATTERNS = { "^resource_gold_deposit", "^resource_stone_deposit" }
-
-local START_VILLAGER_VALUES = {
-	start_villagers_6 = 6, start_villagers_10 = 10, start_villagers_16 = 16, start_villagers_20 = 20, start_villagers_30 = 30,
-}
-
-local WAVE_SIZE_VALUES = {
-	wave_size_0 = 0, wave_size_50 = 50, wave_size_100 = 100, wave_size_150 = 150, wave_size_200 = 200,
-}
-local WAVE_FIRST_VALUES = {
-	wave_first_1 = 60, wave_first_5 = 300, wave_first_10 = 600, wave_first_15 = 900, wave_first_20 = 1200,
-}
-local ASSAULT_INTERVAL_VALUES = {
-	assault_off = 0, assault_1 = 60, assault_2 = 120, assault_3 = 180, assault_5 = 300, assault_10 = 600,
-}
-local WAVE_INTERVAL_VALUES = {
-	wave_interval_1 = 60, wave_interval_2 = 120, wave_interval_5 = 300, wave_interval_8 = 480, wave_interval_10 = 600, wave_interval_15 = 900,
-}
 
 local _settings = {
 	unit_health = 2,
@@ -189,6 +151,26 @@ local _settings = {
 	wave_interval = 60,
 	assault_interval = 120,
 }
+
+-- Numeric option keys carry their value: "wave_every_70" is 70 seconds, "unit_hp_175" with a scale of 100 is x1.75,
+-- and "_off" is 0. So tools/gen_mod.py alone decides which choices exist.
+local function ReadNumber(section, key, prefix, scale, fallback)
+	local option = section[key]
+	if option == nil then
+		return fallback
+	end
+	for item_key, index in pairs(option.enum_items) do
+		if index == option.enum_value then
+			local suffix = string.match(item_key, "^" .. prefix .. "_(.+)$")
+			if suffix == "off" then
+				return 0
+			end
+			local number = tonumber(suffix)
+			return number ~= nil and number / scale or fallback
+		end
+	end
+	return fallback
+end
 
 local function ReadEnum(section, key, values, fallback)
 	local option = section[key]
@@ -210,19 +192,19 @@ local function ReadOptions()
 	if section == nil then
 		return
 	end
-	_settings.unit_health = ReadEnum(section, "option_unit_health", UNIT_HEALTH_VALUES, _settings.unit_health)
-	_settings.defense_health = ReadEnum(section, "option_defense_health", DEFENSE_HEALTH_VALUES, _settings.defense_health)
+	_settings.unit_health = ReadNumber(section, "option_unit_health", "unit_hp", 100, _settings.unit_health)
+	_settings.defense_health = ReadNumber(section, "option_defense_health", "defense_hp", 100, _settings.defense_health)
 	_settings.trebuchet = ReadEnum(section, "option_trebuchet", TREBUCHET_VALUES, _settings.trebuchet)
-	_settings.human_pop = ReadEnum(section, "option_human_pop", HUMAN_POP_VALUES, _settings.human_pop)
-	_settings.ai_pop = ReadEnum(section, "option_ai_pop", AI_POP_VALUES, _settings.ai_pop)
-	_settings.ai_production = ReadEnum(section, "option_ai_production", AI_PRODUCTION_VALUES, _settings.ai_production)
-	_settings.start_villagers = ReadEnum(section, "option_start_villagers", START_VILLAGER_VALUES, _settings.start_villagers)
-	_settings.minerals = ReadEnum(section, "option_minerals", MINERAL_VALUES, _settings.minerals)
-	_settings.survive_time = ReadEnum(section, "option_survive_time", SURVIVE_TIME_VALUES, _settings.survive_time)
-	_settings.wave_size = ReadEnum(section, "option_wave_size", WAVE_SIZE_VALUES, _settings.wave_size)
-	_settings.wave_first = ReadEnum(section, "option_wave_first", WAVE_FIRST_VALUES, _settings.wave_first)
-	_settings.wave_interval = ReadEnum(section, "option_wave_interval", WAVE_INTERVAL_VALUES, _settings.wave_interval)
-	_settings.assault_interval = ReadEnum(section, "option_assault_interval", ASSAULT_INTERVAL_VALUES, _settings.assault_interval)
+	_settings.human_pop = ReadNumber(section, "option_human_pop", "human_pop", 1, _settings.human_pop)
+	_settings.ai_pop = ReadNumber(section, "option_ai_pop", "ai_pop", 1, _settings.ai_pop)
+	_settings.ai_production = ReadNumber(section, "option_ai_production", "ai_production", 100, _settings.ai_production)
+	_settings.start_villagers = ReadNumber(section, "option_start_villagers", "start_villagers", 1, _settings.start_villagers)
+	_settings.minerals = ReadNumber(section, "option_minerals", "minerals", 100, _settings.minerals)
+	_settings.survive_time = ReadNumber(section, "option_survive_time", "survive_after", 1, _settings.survive_time)
+	_settings.wave_size = ReadNumber(section, "option_wave_size", "wave_size", 1, _settings.wave_size)
+	_settings.wave_first = ReadNumber(section, "option_wave_first", "first_wave", 1, _settings.wave_first)
+	_settings.wave_interval = ReadNumber(section, "option_wave_interval", "wave_every", 1, _settings.wave_interval)
+	_settings.assault_interval = ReadNumber(section, "option_assault_interval", "assault_every", 1, _settings.assault_interval)
 end
 
 -- Collects blueprints of the given types, without duplicates.
@@ -258,6 +240,26 @@ end
 
 local function IsDefenseName(name)
 	return MatchesAny(name, DEFENSE_NAME_PATTERNS) and not MatchesAny(name, DEFENSE_NAME_EXCLUDES)
+end
+
+local _monk_heal_rates = { }
+
+local function BoostMonkHealing(player)
+	local rate = Player_GetStateModelFloat(player.id, MONK_HEAL_PROPERTY)
+	local given = _monk_heal_rates[player.index]
+	if rate ~= nil and rate > 0 and (given == nil or rate < given) then
+		_monk_heal_rates[player.index] = rate * MONK_HEAL_FACTOR
+		Player_SetStateModelFloat(player.id, MONK_HEAL_PROPERTY, rate * MONK_HEAL_FACTOR)
+		print(string.format("[FORT] monk healing: player %d %.1f -> %.1f", player.index, rate, rate * MONK_HEAL_FACTOR))
+	end
+end
+
+function FORT_CheckMonkHealing()
+	for _, player in ipairs(PLAYERS) do
+		if not player.isEliminated and not AI_IsAIPlayer(player.id) then
+			Guard("monk healing", BoostMonkHealing, player)
+		end
+	end
 end
 
 local function GrantUpgrades(player_id, names)
@@ -1470,6 +1472,8 @@ function FORT_Start()
 			Guard("human armor", GrantUpgrades, player.id, HUMAN_FREE_UPGRADES)
 		end
 	end
+	FORT_CheckMonkHealing()
+	Guard("monk healing", Rule_AddInterval, FORT_CheckMonkHealing, MONK_HEAL_CHECK_INTERVAL)
 	Guard("wave debug", DebugLog, string.format("start: ai=%d wave_size=%d first=%d interval=%d", #_ai_players, _settings.wave_size, _settings.wave_first, _settings.wave_interval))
 	Guard("villager cap", Rule_AddInterval, FORT_UpdateVillagerCaps, AI_VILLAGER_CHECK_INTERVAL)
 	if _settings.minerals ~= 1 then

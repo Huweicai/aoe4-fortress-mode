@@ -54,19 +54,42 @@ SECTION_KEY = "section_fortress"
 SECTION_NAME = ("Fortress Settings", "堡垒设置")
 
 # key, English name, Chinese name, English tooltip, Chinese tooltip, default item, items
+def multipliers(prefix, values):
+    return [(f"{prefix}_{round(v * 100)}", f"x{v:g}") for v in values]
+
+
+def counts(prefix, values, standard=None):
+    return [(f"{prefix}_{v}", (f"{v} (standard)", f"{v}（原版）") if v == standard else str(v)) for v in values]
+
+
+def duration(seconds):
+    minutes, rest = divmod(seconds, 60)
+    if minutes == 0:
+        return f"{rest} s", f"{rest} 秒"
+    if rest == 0:
+        return f"{minutes} min", f"{minutes} 分钟"
+    return f"{minutes} min {rest} s", f"{minutes} 分 {rest} 秒"
+
+
+def durations(prefix, seconds, off=False, test=None):
+    items = [(f"{prefix}_off", ("Off", "关"))] if off else []
+    for value in seconds:
+        en, zh = duration(value)
+        if value == test:
+            en, zh = f"{en} (test)", f"{zh}（测试）"
+        items.append((f"{prefix}_{value}", (en, zh)))
+    return items
+
+
+# Interval keys count seconds; they were renamed from the old minute keys so that a saved lobby cannot misread one.
 OPTIONS = [
     ("option_unit_health", "Human Unit Health", "玩家单位血量",
      "Health multiplier for human players' military units.", "真人玩家军事单位的血量倍率。",
-     "unit_hp_200",
-     [("unit_hp_100", "x1"), ("unit_hp_150", "x1.5"), ("unit_hp_200", "x2"),
-      ("unit_hp_300", "x3"), ("unit_hp_400", "x4"), ("unit_hp_500", "x5")]),
+     "unit_hp_200", multipliers("unit_hp", [1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5])),
     ("option_defense_health", "Human Defense Health", "玩家防御建筑血量",
      "Health multiplier for human players' walls, gates, towers, outposts and keeps.",
      "真人玩家城墙、城门、哨塔和城堡的血量倍率。",
-     "defense_hp_400",
-     [("defense_hp_100", "x1"), ("defense_hp_200", "x2"), ("defense_hp_300", "x3"),
-      ("defense_hp_400", "x4"), ("defense_hp_500", "x5"), ("defense_hp_800", "x8"),
-      ("defense_hp_1000", "x10")]),
+     "defense_hp_400", multipliers("defense_hp", [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10])),
     ("option_trebuchet", "Disable Trebuchets", "禁用巨型投石机",
      "Who cannot build trebuchets.", "哪些玩家不能建造巨型投石机。",
      "trebuchet_ai",
@@ -74,56 +97,35 @@ OPTIONS = [
       ("trebuchet_humans", ("Humans only", "仅真人玩家")), ("trebuchet_all", ("Everyone", "所有玩家"))]),
     ("option_human_pop", "Human Population Cap", "玩家人口上限",
      "Maximum population for human players.", "真人玩家的人口上限。",
-     "human_pop_300",
-     [("human_pop_200", "200"), ("human_pop_250", "250"), ("human_pop_300", "300"),
-      ("human_pop_400", "400"), ("human_pop_500", "500")]),
+     "human_pop_300", counts("human_pop", [200, 225, 250, 275, 300, 350, 400, 450, 500], standard=200)),
     ("option_ai_pop", "AI Population Cap", "AI 人口上限",
      "Maximum population for AI players.", "AI 玩家的人口上限。",
-     "ai_pop_200",
-     [("ai_pop_100", "100"), ("ai_pop_150", "150"), ("ai_pop_200", "200"),
-      ("ai_pop_250", "250"), ("ai_pop_300", "300")]),
+     "ai_pop_200", counts("ai_pop", [100, 125, 150, 175, 200, 225, 250, 275, 300], standard=200)),
     ("option_ai_production", "AI Unit Production Speed", "AI 造兵速度",
      "Unit production speed multiplier for AI players' buildings.", "AI 玩家建筑的单位生产速度倍率。",
-     "ai_production_200",
-     [("ai_production_100", "x1"), ("ai_production_125", "x1.25"), ("ai_production_150", "x1.5"),
-      ("ai_production_200", "x2"), ("ai_production_300", "x3")]),
+     "ai_production_200", multipliers("ai_production", [1, 1.25, 1.5, 1.75, 2, 2.5, 3])),
     ("option_minerals", "Gold and Stone Deposits", "金矿石矿储量",
      "Multiplies how much every gold and stone deposit on the map holds.", "地图上所有金矿和石矿的储量倍率。",
-     "minerals_200",
-     [("minerals_100", ("x1 (standard)", "×1（原版）")), ("minerals_150", "×1.5"), ("minerals_200", "×2"),
-      ("minerals_300", "×3"), ("minerals_500", "×5")]),
+     "minerals_200", multipliers("minerals", [1, 1.5, 2, 2.5, 3, 4, 5])),
     ("option_start_villagers", "Starting Villagers", "初始村民",
      "Villagers every player starts with.", "所有玩家（含 AI）开局时的村民数量。",
-     "start_villagers_16",
-     [("start_villagers_6", ("6 (standard)", "6（原版）")), ("start_villagers_10", "10"), ("start_villagers_16", "16"),
-      ("start_villagers_20", "20"), ("start_villagers_30", "30")]),
+     "start_villagers_16", counts("start_villagers", [6, 8, 10, 12, 14, 16, 18, 20, 25, 30], standard=6)),
     ("option_assault_interval", "AI All-Out Attack", "AI 定期总攻",
      "From minute 8 on, how often one enemy AI with a standing main town center sends its whole land army.", "从第 8 分钟开始，每隔这段时间，随机一家主城镇中心还在的敌方 AI 派出全部陆军。",
-     "assault_2",
-     [("assault_off", ("Off", "关")), ("assault_1", ("1 min", "1 分钟")), ("assault_2", ("2 min", "2 分钟")),
-      ("assault_3", ("3 min", "3 分钟")), ("assault_5", ("5 min", "5 分钟")), ("assault_10", ("10 min", "10 分钟"))]),
+     "assault_every_120", durations("assault_every", [60, 90, 120, 150, 180, 240, 300, 420, 600], off=True)),
     ("option_survive_time", "Survival Victory", "存活胜利",
      "Humans win if they are still alive after this long.", "坚持到这个时间，真人一方获胜。",
-     "survive_60",
-     [("survive_off", ("Off", "关")), ("survive_5", ("5 min (test)", "5 分钟（测试）")), ("survive_30", ("30 min", "30 分钟")),
-      ("survive_45", ("45 min", "45 分钟")), ("survive_60", ("60 min", "60 分钟")),
-      ("survive_90", ("90 min", "90 分钟")), ("survive_120", ("120 min", "120 分钟"))]),
+     "survive_after_3600", durations("survive_after", [300, 1200, 1800, 2400, 2700, 3000, 3600, 4500, 5400, 7200], off=True, test=300)),
     ("option_wave_size", "Attack Wave Size", "攻城波次规模",
      "Units in each attack wave. One AI attacks at a time, spawning near its town center.",
      "每波攻城的单位数量。AI 轮流出兵，从自己的城镇中心附近出发。",
-     "wave_size_100",
-     [("wave_size_0", ("Off", "关")), ("wave_size_50", "50"), ("wave_size_100", "100"),
-      ("wave_size_150", "150"), ("wave_size_200", "200")]),
+     "wave_size_100", [("wave_size_0", ("Off", "关"))] + counts("wave_size", [30, 50, 75, 100, 125, 150, 200, 250, 300])),
     ("option_wave_first", "First Wave", "首波时间",
      "When the first attack wave starts.", "第一波攻城开始的时间。",
-     "wave_first_10",
-     [("wave_first_1", ("1 min (test)", "1 分钟（测试）")), ("wave_first_5", ("5 min", "5 分钟")), ("wave_first_10", ("10 min", "10 分钟")),
-      ("wave_first_15", ("15 min", "15 分钟")), ("wave_first_20", ("20 min", "20 分钟"))]),
+     "first_wave_600", durations("first_wave", [60, 180, 300, 420, 600, 720, 900, 1200], test=60)),
     ("option_wave_interval", "Wave Interval", "波次间隔",
      "Time between attack waves.", "两波攻城之间的间隔。",
-     "wave_interval_1",
-     [("wave_interval_1", ("1 min", "1 分钟")), ("wave_interval_2", ("2 min", "2 分钟")), ("wave_interval_5", ("5 min", "5 分钟")), ("wave_interval_8", ("8 min", "8 分钟")),
-      ("wave_interval_10", ("10 min", "10 分钟")), ("wave_interval_15", ("15 min", "15 分钟"))]),
+     "wave_every_60", durations("wave_every", [30, 40, 50, 60, 70, 80, 90, 120, 150, 180, 240, 300, 480, 600, 900])),
 ]
 
 

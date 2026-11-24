@@ -5,99 +5,147 @@
 4,"Co-op against the AI behind tough walls. Enemy AIs take turns sending siege waves and launch regular all-out attacks, while your units and defenses are far sturdier. Every value is set in the lobby, next to all the standard game options.",和朋友一起守城打 AI。敌方 AI 轮流派出攻城波次，还会定期全军总攻；你的单位和防御建筑则耐打得多。所有数值都在房间设置里调整，标准模式的选项全部保留。
 5,Fortress Settings,堡垒设置
 6,x1,x1
-7,x1.5,x1.5
-8,x2,x2
-9,x3,x3
-10,x4,x4
-11,x5,x5
-12,Human Unit Health,玩家单位血量
-13,Health multiplier for human players' military units.,真人玩家军事单位的血量倍率。
-14,x1,x1
-15,x2,x2
-16,x3,x3
-17,x4,x4
-18,x5,x5
-19,x8,x8
-20,x10,x10
-21,Human Defense Health,玩家防御建筑血量
-22,"Health multiplier for human players' walls, gates, towers, outposts and keeps.",真人玩家城墙、城门、哨塔和城堡的血量倍率。
-23,Nobody,不禁用
-24,AI only,仅 AI
-25,Humans only,仅真人玩家
-26,Everyone,所有玩家
-27,Disable Trebuchets,禁用巨型投石机
-28,Who cannot build trebuchets.,哪些玩家不能建造巨型投石机。
-29,200,200
-30,250,250
-31,300,300
-32,400,400
-33,500,500
-34,Human Population Cap,玩家人口上限
-35,Maximum population for human players.,真人玩家的人口上限。
-36,100,100
-37,150,150
-38,200,200
-39,250,250
-40,300,300
-41,AI Population Cap,AI 人口上限
-42,Maximum population for AI players.,AI 玩家的人口上限。
-43,x1,x1
-44,x1.25,x1.25
-45,x1.5,x1.5
-46,x2,x2
-47,x3,x3
-48,AI Unit Production Speed,AI 造兵速度
-49,Unit production speed multiplier for AI players' buildings.,AI 玩家建筑的单位生产速度倍率。
-50,x1 (standard),×1（原版）
-51,×1.5,×1.5
-52,×2,×2
-53,×3,×3
-54,×5,×5
-55,Gold and Stone Deposits,金矿石矿储量
-56,Multiplies how much every gold and stone deposit on the map holds.,地图上所有金矿和石矿的储量倍率。
-57,6 (standard),6（原版）
-58,10,10
-59,16,16
-60,20,20
-61,30,30
-62,Starting Villagers,初始村民
-63,Villagers every player starts with.,所有玩家（含 AI）开局时的村民数量。
-64,Off,关
-65,1 min,1 分钟
-66,2 min,2 分钟
-67,3 min,3 分钟
-68,5 min,5 分钟
-69,10 min,10 分钟
-70,AI All-Out Attack,AI 定期总攻
-71,"From minute 8 on, how often one enemy AI with a standing main town center sends its whole land army.",从第 8 分钟开始，每隔这段时间，随机一家主城镇中心还在的敌方 AI 派出全部陆军。
-72,Off,关
-73,5 min (test),5 分钟（测试）
-74,30 min,30 分钟
-75,45 min,45 分钟
-76,60 min,60 分钟
-77,90 min,90 分钟
-78,120 min,120 分钟
-79,Survival Victory,存活胜利
-80,Humans win if they are still alive after this long.,坚持到这个时间，真人一方获胜。
-81,Off,关
-82,50,50
-83,100,100
-84,150,150
-85,200,200
-86,Attack Wave Size,攻城波次规模
-87,"Units in each attack wave. One AI attacks at a time, spawning near its town center.",每波攻城的单位数量。AI 轮流出兵，从自己的城镇中心附近出发。
-88,1 min (test),1 分钟（测试）
-89,5 min,5 分钟
-90,10 min,10 分钟
-91,15 min,15 分钟
-92,20 min,20 分钟
-93,First Wave,首波时间
-94,When the first attack wave starts.,第一波攻城开始的时间。
-95,1 min,1 分钟
-96,2 min,2 分钟
-97,5 min,5 分钟
-98,8 min,8 分钟
-99,10 min,10 分钟
-100,15 min,15 分钟
-101,Wave Interval,波次间隔
-102,Time between attack waves.,两波攻城之间的间隔。
+7,x1.25,x1.25
+8,x1.5,x1.5
+9,x1.75,x1.75
+10,x2,x2
+11,x2.5,x2.5
+12,x3,x3
+13,x4,x4
+14,x5,x5
+15,Human Unit Health,玩家单位血量
+16,Health multiplier for human players' military units.,真人玩家军事单位的血量倍率。
+17,x1,x1
+18,x1.5,x1.5
+19,x2,x2
+20,x2.5,x2.5
+21,x3,x3
+22,x4,x4
+23,x5,x5
+24,x6,x6
+25,x8,x8
+26,x10,x10
+27,Human Defense Health,玩家防御建筑血量
+28,"Health multiplier for human players' walls, gates, towers, outposts and keeps.",真人玩家城墙、城门、哨塔和城堡的血量倍率。
+29,Nobody,不禁用
+30,AI only,仅 AI
+31,Humans only,仅真人玩家
+32,Everyone,所有玩家
+33,Disable Trebuchets,禁用巨型投石机
+34,Who cannot build trebuchets.,哪些玩家不能建造巨型投石机。
+35,200 (standard),200（原版）
+36,225,225
+37,250,250
+38,275,275
+39,300,300
+40,350,350
+41,400,400
+42,450,450
+43,500,500
+44,Human Population Cap,玩家人口上限
+45,Maximum population for human players.,真人玩家的人口上限。
+46,100,100
+47,125,125
+48,150,150
+49,175,175
+50,200 (standard),200（原版）
+51,225,225
+52,250,250
+53,275,275
+54,300,300
+55,AI Population Cap,AI 人口上限
+56,Maximum population for AI players.,AI 玩家的人口上限。
+57,x1,x1
+58,x1.25,x1.25
+59,x1.5,x1.5
+60,x1.75,x1.75
+61,x2,x2
+62,x2.5,x2.5
+63,x3,x3
+64,AI Unit Production Speed,AI 造兵速度
+65,Unit production speed multiplier for AI players' buildings.,AI 玩家建筑的单位生产速度倍率。
+66,x1,x1
+67,x1.5,x1.5
+68,x2,x2
+69,x2.5,x2.5
+70,x3,x3
+71,x4,x4
+72,x5,x5
+73,Gold and Stone Deposits,金矿石矿储量
+74,Multiplies how much every gold and stone deposit on the map holds.,地图上所有金矿和石矿的储量倍率。
+75,6 (standard),6（原版）
+76,8,8
+77,10,10
+78,12,12
+79,14,14
+80,16,16
+81,18,18
+82,20,20
+83,25,25
+84,30,30
+85,Starting Villagers,初始村民
+86,Villagers every player starts with.,所有玩家（含 AI）开局时的村民数量。
+87,Off,关
+88,1 min,1 分钟
+89,1 min 30 s,1 分 30 秒
+90,2 min,2 分钟
+91,2 min 30 s,2 分 30 秒
+92,3 min,3 分钟
+93,4 min,4 分钟
+94,5 min,5 分钟
+95,7 min,7 分钟
+96,10 min,10 分钟
+97,AI All-Out Attack,AI 定期总攻
+98,"From minute 8 on, how often one enemy AI with a standing main town center sends its whole land army.",从第 8 分钟开始，每隔这段时间，随机一家主城镇中心还在的敌方 AI 派出全部陆军。
+99,Off,关
+100,5 min (test),5 分钟（测试）
+101,20 min,20 分钟
+102,30 min,30 分钟
+103,40 min,40 分钟
+104,45 min,45 分钟
+105,50 min,50 分钟
+106,60 min,60 分钟
+107,75 min,75 分钟
+108,90 min,90 分钟
+109,120 min,120 分钟
+110,Survival Victory,存活胜利
+111,Humans win if they are still alive after this long.,坚持到这个时间，真人一方获胜。
+112,Off,关
+113,30,30
+114,50,50
+115,75,75
+116,100,100
+117,125,125
+118,150,150
+119,200,200
+120,250,250
+121,300,300
+122,Attack Wave Size,攻城波次规模
+123,"Units in each attack wave. One AI attacks at a time, spawning near its town center.",每波攻城的单位数量。AI 轮流出兵，从自己的城镇中心附近出发。
+124,1 min (test),1 分钟（测试）
+125,3 min,3 分钟
+126,5 min,5 分钟
+127,7 min,7 分钟
+128,10 min,10 分钟
+129,12 min,12 分钟
+130,15 min,15 分钟
+131,20 min,20 分钟
+132,First Wave,首波时间
+133,When the first attack wave starts.,第一波攻城开始的时间。
+134,30 s,30 秒
+135,40 s,40 秒
+136,50 s,50 秒
+137,1 min,1 分钟
+138,1 min 10 s,1 分 10 秒
+139,1 min 20 s,1 分 20 秒
+140,1 min 30 s,1 分 30 秒
+141,2 min,2 分钟
+142,2 min 30 s,2 分 30 秒
+143,3 min,3 分钟
+144,4 min,4 分钟
+145,5 min,5 分钟
+146,8 min,8 分钟
+147,10 min,10 分钟
+148,15 min,15 分钟
+149,Wave Interval,波次间隔
+150,Time between attack waves.,两波攻城之间的间隔。

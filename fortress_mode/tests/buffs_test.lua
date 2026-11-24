@@ -16,7 +16,7 @@ function Modifier_Create(target, kind, mut, exclusive, factor, bp)
 	return m
 end
 function Modifier_ApplyToPlayer(m, p) table.insert(log.applied, { m = m, p = p }) end
-assert(load(io.open(path):read("a") .. "\n_T = { GrantUpgrades = GrantUpgrades, BuffWeapons = BuffWeapons, HUMAN_FREE_UPGRADES = HUMAN_FREE_UPGRADES, HUMAN_TREBUCHET_WEAPONS = HUMAN_TREBUCHET_WEAPONS, HUMAN_TREBUCHET_MODIFIERS = HUMAN_TREBUCHET_MODIFIERS }", "@" .. path))()
+assert(load(io.open(path):read("a") .. "\n_T = { ReadNumber = ReadNumber, BoostMonkHealing = BoostMonkHealing, GrantUpgrades = GrantUpgrades, BuffWeapons = BuffWeapons, HUMAN_FREE_UPGRADES = HUMAN_FREE_UPGRADES, HUMAN_TREBUCHET_WEAPONS = HUMAN_TREBUCHET_WEAPONS, HUMAN_TREBUCHET_MODIFIERS = HUMAN_TREBUCHET_MODIFIERS }", "@" .. path))()
 
 local failed = 0
 local function check(name, ok) io.write((ok and "PASS " or "FAIL ") .. name .. "\n"); if not ok then failed = failed + 1 end end
@@ -36,5 +36,24 @@ check("greek fire trebuchet buffed too", by["wpn:weapon_trebuchet_4_greek_fire"]
 check("a rejected modifier does not stop the others", cw.weapon_wind_down_modifier == nil and cw.damage_weapon_modifier == 3)
 check("a missing weapon is skipped", by["wpn:weapon_trebuchet_4_grenade_jin"] == nil)
 check("weapon type modifiers, as a player modifier", log.modifiers[1].target == "MAT_WeaponType")
+
+-- monk healing
+local rates = { }
+function Player_GetStateModelFloat(p, key) assert(key == "monk_heal_rate"); return rates[p] end
+function Player_SetStateModelFloat(p, key, v) assert(key == "monk_heal_rate"); rates[p] = v end
+local human = { id = 7, index = 1 }
+rates[7] = 7; _T.BoostMonkHealing(human); check("monk healing 7 -> 105", rates[7] == 105)
+_T.BoostMonkHealing(human); check("not boosted twice", rates[7] == 105)
+rates[7] = 110; _T.BoostMonkHealing(human); check("a tech raising it on top is left alone", rates[7] == 110)
+rates[7] = 10; _T.BoostMonkHealing(human); check("a tech setting it lower is boosted again", rates[7] == 150)
+rates[8] = nil; _T.BoostMonkHealing({ id = 8, index = 2 }); check("no property: nothing set", rates[8] == nil)
+
+-- numeric options read from their keys
+local function section(key, chosen, items) local e = { } for i, k in ipairs(items) do e[k] = i end return { [key] = { enum_items = e, enum_value = e[chosen] } } end
+check("70 s wave interval", _T.ReadNumber(section("o", "wave_every_70", { "wave_every_30", "wave_every_70" }), "o", "wave_every", 1, 60) == 70)
+check("x1.75 health", _T.ReadNumber(section("o", "unit_hp_175", { "unit_hp_100", "unit_hp_175" }), "o", "unit_hp", 100, 2) == 1.75)
+check("off is 0", _T.ReadNumber(section("o", "assault_every_off", { "assault_every_off", "assault_every_60" }), "o", "assault_every", 1, 120) == 0)
+check("old key falls back", _T.ReadNumber(section("o", "wave_interval_1", { "wave_interval_1" }), "o", "wave_every", 1, 60) == 60)
+check("missing option falls back", _T.ReadNumber({ }, "o", "wave_every", 1, 60) == 60)
 io.write(failed == 0 and "ALL OK\n" or ("FAILED " .. failed .. "\n"))
 os.exit(failed == 0 and 0 or 1)
