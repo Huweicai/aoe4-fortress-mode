@@ -16,8 +16,11 @@ local METERS_PER_SQUARE = 16
 local UPRIGHT_SHARE = 0.22
 -- Height of the crossbar, as a share of the map.
 local CROSSBAR_SHARE = 0.42
-local NECK_LENGTH = 2
-local NECK_WIDTH = 2
+-- Necks are cut through dense forest rather than mountains: flat ground keeps the camera steady.
+local NECK_LENGTH = 3
+local NECK_WIDTH = 4
+-- One fishing spot every this many squares along each shore of the crossbar.
+local FISH_SPACING = 3
 local FOREST_CHANCE = 0.03
 local HILL_CHANCE = 0.05
 
@@ -26,8 +29,11 @@ gridHeight, gridWidth, gridSize = SetCustomCoarseGrid(METERS_PER_SQUARE)
 playerStarts = worldPlayerCount
 
 local plains = tt_plains
-local water = tt_lake_deep
-local rock = tt_impasse_mountains
+-- Deep water and its shore as the official lake maps lay them out; fish sit a little way off the shore.
+local water = tt_ocean
+local shore = tt_ocean_shore
+local fish = tt_lake_medium_fish_single_precise
+local forest = tt_impasse_trees_plains
 local start = tt_player_start_classic_plains
 
 terrainLayoutResult = SetUpGrid(gridSize, plains, terrainLayoutResult)
@@ -88,14 +94,24 @@ for row = 1, gridSize do
 	end
 end
 
--- Each neck is rock across the crossbar but for a narrow gap in the middle.
+-- A shore along the crossbar only, so the shallows never link the uprights to the crossbar past the necks.
+for col = crossbar_first, crossbar_last do
+	Set(crossbar_top - 1, col, shore)
+	Set(crossbar_bottom + 1, col, shore)
+	if (col - crossbar_first) % FISH_SPACING == 1 then
+		Set(crossbar_top - 3, col, fish)
+		Set(crossbar_bottom + 3, col, fish)
+	end
+end
+
+-- Each neck is forest across the crossbar but for a narrow gap in the middle.
 local gap_first = middle - math.floor((NECK_WIDTH - 1) / 2)
 local gap_last = gap_first + NECK_WIDTH - 1
 for _, neck in ipairs({ { left_neck_first, left_neck_last }, { right_neck_first, right_neck_last } }) do
 	for col = neck[1], neck[2] do
 		for row = crossbar_top, crossbar_bottom do
 			if row < gap_first or row > gap_last then
-				Set(row, col, rock)
+				Set(row, col, forest)
 			end
 		end
 	end

@@ -95,7 +95,7 @@ def _gold_layer(image, mask, colour=GOLD, alpha=255):
 
 
 def _water(image, rows, cell, rng):
-    mask = _mask(rows, "~", image.size[0], 0.45)
+    mask = _mask(rows, "~sf", image.size[0], 0.45)
     if not mask.getbbox():
         return
     mask = _organic(mask, cell, rng)
@@ -107,13 +107,22 @@ def _water(image, rows, cell, rng):
     ring = _outline(mask.filter(ImageFilter.MaxFilter(int(cell * 0.6) | 1)), max(3, int(cell * 0.08)))
     _gold_layer(image, ring, alpha=120)
     draw = ImageDraw.Draw(image, "RGBA")
-    for r, c in _cells(rows, "~"):
+    for r, c in _cells(rows, "~sf"):
         if rng.random() < 0.18:
             x, y = (c + rng.random()) * cell, (r + rng.random()) * cell
             for k in range(3):
                 yy = y + k * cell * 0.16
                 points = [(x + t * cell * 0.12, yy + math.sin(t * 1.6) * cell * 0.05) for t in range(6)]
                 draw.line(points, fill=GOLD + (110,), width=max(2, int(cell * 0.04)))
+
+
+def _fish(image, rows, cell):
+    draw = ImageDraw.Draw(image)
+    line = max(2, int(cell * 0.06))
+    for r, c in _cells(rows, "f"):
+        x, y = (c + 0.5) * cell, (r + 0.5) * cell
+        draw.ellipse([x - cell * 0.35, y - cell * 0.15, x + cell * 0.2, y + cell * 0.15], outline=GOLD, width=line)
+        draw.polygon([(x + cell * 0.2, y), (x + cell * 0.45, y - cell * 0.18), (x + cell * 0.45, y + cell * 0.18)], outline=GOLD)
 
 
 def _peak(draw, x, y, height, width, line):
@@ -167,8 +176,8 @@ def _trees(image, rows, cell, rng):
     draw = ImageDraw.Draw(image)
     line = max(3, int(cell * 0.07))
     for r, c in _cells(rows, "T"):
-        x, y = (c + 0.5) * cell, (r + 0.5) * cell
-        radius = cell * 0.4
+        x, y = (c + rng.uniform(0.25, 0.75)) * cell, (r + rng.uniform(0.25, 0.75)) * cell
+        radius = cell * rng.uniform(0.32, 0.46)
         draw.ellipse([x - radius, y - radius * 1.2, x + radius, y + radius * 0.4], outline=GOLD, width=line)
         draw.line([(x, y + radius * 0.4), (x, y + radius * 1.2)], fill=GOLD, width=line)
 
@@ -226,6 +235,7 @@ def draw_map(rows, size, defenders, seed=7):
     _grass(image, rows, cell, rng)
     _water(image, rows, cell, rng)
     _mountains(image, rows, cell, rng)
+    _fish(image, rows, cell)
     _hills(image, rows, cell, rng)
     _trees(image, rows, cell, rng)
     draw = ImageDraw.Draw(image)
