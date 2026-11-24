@@ -27,9 +27,12 @@ log.upgrades = { }
 _T.GrantUpgrades(7, { "missing_upgrade", "upgrade_melee_armor_i" })
 check("an unknown upgrade is skipped, the rest still granted", #log.upgrades == 1)
 
-_T.BuffWeapons(7, _T.HUMAN_TREBUCHET_WEAPONS, _T.HUMAN_TREBUCHET_MODIFIERS)
+-- In the game a player id is an engine object, not a number, so the tests pass a table.
+local PLAYER = setmetatable({ }, { __tostring = function() return "Player7" end })
+local ok, err = pcall(_T.BuffWeapons, PLAYER, _T.HUMAN_TREBUCHET_WEAPONS, _T.HUMAN_TREBUCHET_MODIFIERS)
+check("player id that is not a number does not break it", ok)
 local by = { }
-for _, a in ipairs(log.applied) do by[a.m.bp] = by[a.m.bp] or { }; by[a.m.bp][a.m.kind] = a.m.factor; assert(a.p == 7) end
+for _, a in ipairs(log.applied) do by[a.m.bp] = by[a.m.bp] or { }; by[a.m.bp][a.m.kind] = a.m.factor; assert(a.p == PLAYER) end
 local cw = by["wpn:weapon_trebuchet_4_counterweight"]
 check("counterweight: damage x3, range x1.2, reload x2/3", cw and cw.damage_weapon_modifier == 3 and cw.range_weapon_modifier == 1.2 and math.abs(cw.reload_weapon_modifier - 2 / 3) < 1e-9)
 check("greek fire trebuchet buffed too", by["wpn:weapon_trebuchet_4_greek_fire"] ~= nil)

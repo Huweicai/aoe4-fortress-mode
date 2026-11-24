@@ -260,7 +260,7 @@ local function BuffWeapons(player_id, weapon_names, modifiers)
 			end
 		end
 	end
-	print(string.format("[FORT] player %d: %d trebuchet weapon modifiers", player_id, applied))
+	print(string.format("[FORT] player %s: %d trebuchet weapon modifiers", tostring(player_id), applied))
 end
 
 local function ApplyMultiplier(blueprints, player_id, modifier_type, factor)
