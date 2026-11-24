@@ -89,6 +89,23 @@ local WAVE_BOMBARD_COUNT = 1
 local WAVE_BOMBARD_MAX = 10
 -- Hidden: every AI's infantry has this much more health.
 local AI_INFANTRY_HEALTH = 1.5
+-- Hidden: humans start with the first blacksmith armor techs, +1 melee and +1 ranged armor on non-siege units.
+local HUMAN_FREE_UPGRADES = { "upgrade_melee_armor_i", "upgrade_ranged_armor_i" }
+-- Hidden: human trebuchets hit three times as hard, reach 20% further and fire 50% faster.
+-- A shot is wind up, wind down and reload; wind down is most of it, so both it and the reload are shortened.
+local HUMAN_TREBUCHET_WEAPONS = {
+	"weapon_trebuchet_4_counterweight", "weapon_trebuchet_4_counterweight_aoe_eng", "weapon_trebuchet_4_counterweight_shatter_eng",
+	"weapon_trebuchet_4_cw_improved_eng", "weapon_trebuchet_4_tr_improved_eng", "weapon_trebuchet_4_cw_double_tem",
+	"weapon_trebuchet_4_siege_double_tem", "weapon_trebuchet_4_cw_rus", "weapon_trebuchet_4_tr_rus", "weapon_trebuchet_4_traction",
+	"weapon_trebuchet_4_traction_mon", "weapon_trebuchet_4_greek_fire", "weapon_trebuchet_4_grenade_jin",
+	"weapon_trebuchet_naptha_shot_mon_ha_gol",
+}
+local HUMAN_TREBUCHET_MODIFIERS = {
+	{ "damage_weapon_modifier", 3 },
+	{ "range_weapon_modifier", 1.2 },
+	{ "reload_weapon_modifier", 1 / 1.5 },
+	{ "weapon_wind_down_modifier", 1 / 1.5 },
+}
 local WAVE_INFANTRY = {
 	{ type = "scar_manatarms", share = 0.30 },
 	{ type = "scar_spearman", share = 0.25 },
@@ -241,6 +258,37 @@ end
 
 local function IsDefenseName(name)
 	return MatchesAny(name, DEFENSE_NAME_PATTERNS) and not MatchesAny(name, DEFENSE_NAME_EXCLUDES)
+end
+
+local function GrantUpgrades(player_id, names)
+	for _, name in ipairs(names) do
+		local ok, upgrade = pcall(BP_GetUpgradeBlueprint, name)
+		if ok and upgrade ~= nil then
+			Player_CompleteUpgrade(player_id, upgrade)
+		else
+			print("[FORT] Unknown upgrade: " .. name)
+		end
+	end
+end
+
+-- Weapon type modifiers reach every trebuchet of the player, built now or later.
+-- Each modifier is tried on its own, so one the engine rejects does not cost the others.
+local function BuffWeapons(player_id, weapon_names, modifiers)
+	local applied = 0
+	for _, name in ipairs(weapon_names) do
+		local ok, weapon = pcall(BP_GetWeaponBlueprint, name)
+		if ok and weapon ~= nil then
+			for _, entry in ipairs(modifiers) do
+				local created, modifier = pcall(Modifier_Create, MAT_WeaponType, entry[1], MUT_Multiplication, false, entry[2], weapon)
+				if created and pcall(Modifier_ApplyToPlayer, modifier, player_id, 0) then
+					applied = applied + 1
+				else
+					print("[FORT] Weapon modifier failed: " .. entry[1] .. " on " .. name)
+				end
+			end
+		end
+	end
+	print(string.format("[FORT] player %d: %d trebuchet weapon modifiers", player_id, applied))
 end
 
 local function ApplyMultiplier(blueprints, player_id, modifier_type, factor)
@@ -1044,6 +1092,7 @@ local function SetupPlayer(player)
 		if _settings.defense_health ~= 1 then
 			Guard("defense health", ApplyMultiplier, _defense_blueprints, player.id, "health_maximum_modifier", _settings.defense_health)
 		end
+		Guard("human trebuchets", BuffWeapons, player.id, HUMAN_TREBUCHET_WEAPONS, HUMAN_TREBUCHET_MODIFIERS)
 	end
 	if IsTrebuchetBlocked(is_ai) then
 		Guard("trebuchet", BlockTrebuchets, player.id)
@@ -1415,6 +1464,12 @@ local function MultiplyMinerals()
 end
 
 function FORT_Start()
+	-- Upgrades are completed once the match runs, like the ones official modes hand out.
+	for _, player in ipairs(PLAYERS) do
+		if not AI_IsAIPlayer(player.id) then
+			Guard("human armor", GrantUpgrades, player.id, HUMAN_FREE_UPGRADES)
+		end
+	end
 	Guard("wave debug", DebugLog, string.format("start: ai=%d wave_size=%d first=%d interval=%d", #_ai_players, _settings.wave_size, _settings.wave_first, _settings.wave_interval))
 	Guard("villager cap", Rule_AddInterval, FORT_UpdateVillagerCaps, AI_VILLAGER_CHECK_INTERVAL)
 	if _settings.minerals ~= 1 then
