@@ -21,10 +21,10 @@ LOCDB = ASSETS / "locdb"
 
 TITLE = ("Fortress Mode", "堡垒模式")
 DESCRIPTION = (
-    "Co-op against the AI behind tough walls. Enemy AIs take turns sending siege waves and launch regular "
-    "all-out attacks, while your units and defenses are far sturdier. Every value is set in the lobby, "
+    "Co-op against the AI behind tough walls. Enemy AIs take turns sending siege waves that grow every time, "
+    "while your units and defenses are far sturdier. Every value is set in the lobby, "
     "next to all the standard game options.",
-    "和朋友一起守城打 AI。敌方 AI 轮流派出攻城波次，还会定期全军总攻；你的单位和防御建筑则耐打得多。"
+    "和朋友一起守城打 AI。敌方 AI 轮流派出攻城波次，一波比一波猛；你的单位和防御建筑则耐打得多。"
     "所有数值都在房间设置里调整，标准模式的选项全部保留。",
 )
 # The lobby options of the official standard mode. A WinCondition cannot inherit them, so they are
@@ -110,9 +110,6 @@ OPTIONS = [
     ("option_start_villagers", "Starting Villagers", "初始村民",
      "Villagers every player starts with.", "所有玩家（含 AI）开局时的村民数量。",
      "start_villagers_16", counts("start_villagers", [6, 8, 10, 12, 14, 16, 18, 20, 25, 30], standard=6)),
-    ("option_assault_interval", "AI All-Out Attack", "AI 定期总攻",
-     "From minute 8 on, how often one enemy AI with a standing main town center sends its whole land army.", "从第 8 分钟开始，每隔这段时间，随机一家主城镇中心还在的敌方 AI 派出全部陆军。",
-     "assault_every_120", durations("assault_every", [60, 90, 120, 150, 180, 240, 300, 420, 600], off=True)),
     ("option_survive_time", "Survival Victory", "存活胜利",
      "Humans win if they are still alive after this long.", "坚持到这个时间，真人一方获胜。",
      "survive_after_3600", durations("survive_after", [300, 1200, 1800, 2400, 2700, 3000, 3600, 4500, 5400, 7200], off=True, test=300)),

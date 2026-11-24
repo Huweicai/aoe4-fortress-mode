@@ -28,25 +28,17 @@ local DEFENSE_OIL_DAMAGE_FACTOR = 0.25
 -- The oil weapons are weapon_keep_murder_hole, weapon_outpost_murder_hole and weapon_walltower_murder_hole.
 local DEFENSE_OIL_WEAPON = "murder_hole"
 -- Hidden signals: a human loses several scouts at once, and the count picks the signal.
--- Scouts are counted every assault step rather than through death events, which a deletion may not raise.
+-- Scouts are counted every check, besides death events, which a deletion may not raise.
 -- The window starts at the first loss and leaves time for a whole selection to die.
 local SCOUT_SIGNAL_WINDOW = 3
--- Assaults are spread out so that no simulation tick has to carry a whole army:
--- one AI's army is sorted per step, then this many squads get their order per step.
-local ASSAULT_STEP_INTERVAL = 0.5
-local ASSAULT_STEP_SQUADS = 20
+local SCOUT_CHECK_INTERVAL = 0.5
 local BONUS_WAVE_COOLDOWN = 120
 -- Shared out evenly between the AIs that can still send waves; bonus waves never count as wave survivors.
 local BONUS_WAVE_TOTAL = 400
--- An assaulting army is kept under command this long, so that the AI cannot simply call it back.
-local ASSAULT_COMMAND_TIME = 180
--- Periodic assaults leave the early game alone, whatever their interval.
-local PERIODIC_ASSAULT_FIRST = 480
 local BONUS_WAVE_SCOUTS = 5
 -- For testing: the human who loses this many scouts gets stone.
 local STONE_GIFT_SCOUTS = 3
 local STONE_GIFT_AMOUNT = 1000
-local ASSAULT_EXCLUDED_TYPES = { "scout", "monk", "naval_unit", "worker" }
 local RULE_FAILURE_LIMIT = 3
 -- Diagnostics are written only in a -dev launch, the only one that keeps print output (LogFiles\AoE4_*\scarlog).
 -- They only log, so peers that differ here still run the same simulation.
@@ -149,7 +141,6 @@ local _settings = {
 	wave_size = 100,
 	wave_first = 600,
 	wave_interval = 60,
-	assault_interval = 120,
 }
 
 -- Numeric option keys carry their value: "wave_every_70" is 70 seconds, "unit_hp_175" with a scale of 100 is x1.75,
@@ -204,7 +195,6 @@ local function ReadOptions()
 	_settings.wave_size = ReadNumber(section, "option_wave_size", "wave_size", 1, _settings.wave_size)
 	_settings.wave_first = ReadNumber(section, "option_wave_first", "first_wave", 1, _settings.wave_first)
 	_settings.wave_interval = ReadNumber(section, "option_wave_interval", "wave_every", 1, _settings.wave_interval)
-	_settings.assault_interval = ReadNumber(section, "option_assault_interval", "assault_every", 1, _settings.assault_interval)
 end
 
 -- Collects blueprints of the given types, without duplicates.
@@ -523,8 +513,6 @@ end
 
 -- One force per attacker and target human, kept in arrays so that every peer issues orders in the same sequence.
 local _wave_forces = { }
--- The army each AI sent in its last assault, ordered like a wave until it is released back to the AI.
-local _assault_forces = { }
 
 local function WaveForce(attacker, target, bonus)
 	bonus = bonus == true
@@ -923,15 +911,6 @@ local function OrderPlayerWaves(player)
 		all_ok = Guard("wave orders", OrderIfNeeded, force, force.army, OrderArmy) and all_ok
 		all_ok = Guard("wave orders", OrderIdleSiege, force) and all_ok
 	end
-	local assault = _assault_forces[player.index]
-	if assault ~= nil then
-		if World_GetGameTime() >= assault.release_at then
-			SGroup_Clear(assault.army)
-			_assault_forces[player.index] = nil
-		else
-			all_ok = Guard("assault orders", OrderIfNeeded, assault, assault.army, OrderArmy) and all_ok
-		end
-	end
 	if not all_ok then
 		error("wave orders failed")
 	end
@@ -943,7 +922,7 @@ local function OrderNextPlayerWaves()
 	for _ = 1, #_wave_attackers do
 		_order_turn = _order_turn % #_wave_attackers + 1
 		local player = _wave_attackers[_order_turn]
-		if not player.isEliminated and (_wave_forces[player.index] ~= nil or _assault_forces[player.index] ~= nil) then
+		if not player.isEliminated and _wave_forces[player.index] ~= nil then
 			OrderPlayerWaves(player)
 			return
 		end
@@ -1245,88 +1224,6 @@ function FORT_SurvivalWin()
 	Guard("survival win", DeclareSurvivalWin)
 end
 
-local function IsAssaultSquad(squad)
-	if not Squad_IsOfType(squad, "military") then
-		return false
-	end
-	for _, excluded in ipairs(ASSAULT_EXCLUDED_TYPES) do
-		if Squad_IsOfType(squad, excluded) then
-			return false
-		end
-	end
-	return true
-end
-
-local _assault_players = { }
-local _assault_orders = { }
-
-local function PrepareAssault(player)
-	local humans = LiveEnemyHumans(player.id)
-	if player.isEliminated or #humans == 0 then
-		return
-	end
-	local squad_ids = { }
-	local army = SGroup_CreateIfNotFound("fort_assault_force_" .. player.index)
-	SGroup_Clear(army)
-	SGroup_ForEach(Player_GetSquads(player.id), function(_, _, squad)
-		if IsAssaultSquad(squad) then
-			table.insert(squad_ids, Squad_GetID(squad))
-			SGroup_Add(army, squad)
-		end
-	end)
-	DebugLog(string.format("assault: player %d sends %d squads", player.index, #squad_ids))
-	if #squad_ids > 0 then
-		local human = humans[World_GetRand(1, #humans)]
-		local target = ClosestBuildingOf({ human }, SGroup_GetPosition(army))
-		if target ~= nil then
-			-- The first orders go out in steps below; the order passes only step in once the army stalls or turns back.
-			_assault_forces[player.index] = {
-				attacker = player,
-				target = human,
-				army = army,
-				building_id = Entity_GetID(target),
-				building_owner = human,
-				last_orders = { [army] = Entity_GetID(target) },
-				last_distances = { },
-				release_at = World_GetGameTime() + ASSAULT_COMMAND_TIME,
-			}
-			table.insert(_assault_orders, { squad_ids = squad_ids, next_index = 1, position = Entity_GetPosition(target) })
-		end
-	end
-end
-
-local function OrderNextAssaultSquads(assault)
-	local group = SGroup_CreateIfNotFound("fort_assault")
-	SGroup_Clear(group)
-	local last_index = math.min(assault.next_index + ASSAULT_STEP_SQUADS - 1, #assault.squad_ids)
-	for index = assault.next_index, last_index do
-		local squad_id = assault.squad_ids[index]
-		if Squad_IsValid(squad_id) then
-			SGroup_Add(group, Squad_FromID(squad_id))
-		end
-	end
-	assault.next_index = last_index + 1
-	if SGroup_CountSpawned(group) > 0 then
-		Cmd_AttackMove(group, assault.position)
-	end
-end
-
-local function AssaultStep()
-	local assault = _assault_orders[1]
-	if assault ~= nil then
-		-- Removed first, so that an error cannot repeat the same step forever.
-		if assault.next_index + ASSAULT_STEP_SQUADS > #assault.squad_ids then
-			table.remove(_assault_orders, 1)
-		end
-		OrderNextAssaultSquads(assault)
-	else
-		local player = table.remove(_assault_players, 1)
-		if player ~= nil then
-			PrepareAssault(player)
-		end
-	end
-end
-
 local _bonus_wave_ready_at = 0
 
 local function BonusWaves()
@@ -1419,34 +1316,8 @@ local function SettleScoutSignals()
 	end
 end
 
-function FORT_AssaultTick()
+function FORT_ScoutTick()
 	Guard("scout signal", SettleScoutSignals)
-	Guard("assault", AssaultStep)
-end
-
--- A periodic assault waits while another one is still going out.
-local function PeriodicAssault()
-	if #_assault_players > 0 or #_assault_orders > 0 then
-		return
-	end
-	local candidates = { }
-	for _, player in ipairs(_wave_attackers) do
-		if not player.isEliminated and CapitalTownCenter(player) ~= nil then
-			table.insert(candidates, player)
-		end
-	end
-	if #candidates > 0 then
-		table.insert(_assault_players, candidates[World_GetRand(1, #candidates)])
-	end
-end
-
-function FORT_PeriodicAssault()
-	TrackRule(FORT_PeriodicAssault, "periodic assault", Guard("periodic assault", PeriodicAssault))
-end
-
-function FORT_StartPeriodicAssaults()
-	Guard("periodic assault", Rule_AddInterval, FORT_PeriodicAssault, _settings.assault_interval)
-	FORT_PeriodicAssault()
 end
 
 -- Runs once at the start, when every deposit of the map is in place.
@@ -1484,10 +1355,7 @@ function FORT_Start()
 		Guard("wave orders", Rule_AddInterval, FORT_OrderWaves, WAVE_ORDER_INTERVAL)
 	end
 	Guard("scout signal", Rule_AddGlobalEvent, FORT_OnEntityKilled, GE_EntityKilled)
-	Guard("assault", Rule_AddInterval, FORT_AssaultTick, ASSAULT_STEP_INTERVAL)
-	if _settings.assault_interval > 0 then
-		Guard("periodic assault", Rule_AddOneShot, FORT_StartPeriodicAssaults, PERIODIC_ASSAULT_FIRST)
-	end
+	Guard("scout signal", Rule_AddInterval, FORT_ScoutTick, SCOUT_CHECK_INTERVAL)
 	if _settings.wave_size > 0 and #_ai_players > 0 then
 		Guard("wave schedule", ScheduleWaves)
 	end
@@ -1504,7 +1372,7 @@ function FORT_Start()
 end
 
 function FORT_OnGameOver()
-	for _, rule in ipairs({ FORT_AssaultTick, FORT_StartPeriodicAssaults, FORT_PeriodicAssault, FORT_LogPerf, FORT_AddStartingVillagers, FORT_SurvivalWin, FORT_UpdateVillagerCaps, FORT_StartWaves, FORT_SpawnWave, FORT_SpawnBatch, FORT_OrderWaves }) do
+	for _, rule in ipairs({ FORT_ScoutTick, FORT_CheckMonkHealing, FORT_LogPerf, FORT_AddStartingVillagers, FORT_SurvivalWin, FORT_UpdateVillagerCaps, FORT_StartWaves, FORT_SpawnWave, FORT_SpawnBatch, FORT_OrderWaves }) do
 		pcall(Rule_Remove, rule)
 	end
 end
