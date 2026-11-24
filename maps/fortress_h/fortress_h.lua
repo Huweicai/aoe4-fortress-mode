@@ -4,9 +4,9 @@
 --
 --   +------+~~~~~~~~~~~~~~~~+------+
 --   |      |~~~~ water ~~~~~|      |
---   |  A1  |################|  A2  |   ####: shore of mountains, so the crossbar cannot be walked into
+--   |  A1  |  shore, fishing |  A2  |
 --   |      =  P1        P2  =      |   = : narrow neck, one per side
---   |  A3  |################|  A4  |
+--   |  A3  |  shore, fishing |  A4  |
 --   |      |~~~~ water ~~~~~|      |
 --   +------+~~~~~~~~~~~~~~~~+------+
 
@@ -88,12 +88,6 @@ for row = 1, gridSize do
 	end
 end
 
--- A mountain shore along the crossbar keeps units from landing along it or wading in from the corners.
-for col = left_neck_first, right_neck_last do
-	Set(crossbar_top, col, rock)
-	Set(crossbar_bottom, col, rock)
-end
-
 -- Each neck is rock across the crossbar but for a narrow gap in the middle.
 local gap_first = middle - math.floor((NECK_WIDTH - 1) / 2)
 local gap_last = gap_first + NECK_WIDTH - 1
@@ -149,8 +143,8 @@ for _, side in ipairs(sides) do
 	end
 end
 
--- Extra gold and stone tucked against the shore at both ends of the crossbar, one pair per defender.
-Set(crossbar_top + 1, crossbar_first + 1, tt_gold_large)
-Set(crossbar_bottom - 1, crossbar_first + 1, tt_stone_large)
-Set(crossbar_top + 1, crossbar_last - 1, tt_gold_large)
-Set(crossbar_bottom - 1, crossbar_last - 1, tt_stone_large)
+-- Extra gold and stone near both ends of the crossbar, one pair per defender, a square off the shore.
+Set(crossbar_top + 2, crossbar_first + 1, tt_gold_large)
+Set(crossbar_bottom - 2, crossbar_first + 1, tt_stone_large)
+Set(crossbar_top + 2, crossbar_last - 1, tt_gold_large)
+Set(crossbar_bottom - 2, crossbar_last - 1, tt_stone_large)
