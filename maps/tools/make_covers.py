@@ -80,7 +80,10 @@ def font(size, weight=FONT_BOLD):
 
 
 def layout(map_name, library, seed):
-    script = ROOT / "maps" / map_name / f"{map_name}.lua"
+    # Maps that already have their editor project keep the script where the editor wants it.
+    script = ROOT / "maps" / map_name / "assets" / "scar" / "terrainlayout" / f"{map_name}.lua"
+    if not script.exists():
+        script = ROOT / "maps" / map_name / f"{map_name}.lua"
     preview = ROOT / "maps" / "tests" / "preview.lua"
     output = subprocess.run(["lua", str(preview), str(script), library, "640", TEAMS, str(seed)],
                             check=True, capture_output=True, text=True).stdout
