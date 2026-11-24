@@ -1170,7 +1170,7 @@
 <DataProperty Name="m_locStringKey" Type="Int32" Value="24"/>
 </DataObject>
 </DataProperty>
-<DataProperty Name="m_isDefaultValue" Type="Bool" Value="false"/>
+<DataProperty Name="m_isDefaultValue" Type="Bool" Value="true"/>
 <DataProperty Name="m_devOnly" Type="Bool" Value="false"/>
 </DataObject>
 <DataObject Name="" Type="WinCondition::OptionEnumItemUIDescriptor" Id="5363642276090596667" OwnerId="11651041787814392849">
@@ -1220,7 +1220,7 @@
 <DataProperty Name="m_locStringKey" Type="Int32" Value="26"/>
 </DataObject>
 </DataProperty>
-<DataProperty Name="m_isDefaultValue" Type="Bool" Value="true"/>
+<DataProperty Name="m_isDefaultValue" Type="Bool" Value="false"/>
 <DataProperty Name="m_devOnly" Type="Bool" Value="false"/>
 </DataObject>
 </DataProperty>

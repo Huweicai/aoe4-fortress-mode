@@ -69,7 +69,7 @@ OPTIONS = [
       ("defense_hp_1000", "x10")]),
     ("option_trebuchet", "Disable Trebuchets", "禁用巨型投石机",
      "Who cannot build trebuchets.", "哪些玩家不能建造巨型投石机。",
-     "trebuchet_all",
+     "trebuchet_ai",
      [("trebuchet_off", ("Nobody", "不禁用")), ("trebuchet_ai", ("AI only", "仅 AI")),
       ("trebuchet_humans", ("Humans only", "仅真人玩家")), ("trebuchet_all", ("Everyone", "所有玩家"))]),
     ("option_human_pop", "Human Population Cap", "玩家人口上限",

@@ -14,7 +14,7 @@
 |---|---|---|
 | 玩家单位血量 | ×2 | ×1 ~ ×5 |
 | 玩家防御建筑血量（城墙、城门、箭塔、前哨、城堡） | ×4 | ×1 ~ ×10 |
-| 禁用巨型投石机 | 所有人 | 关 / 仅 AI / 仅玩家 / 所有人 |
+| 禁用巨型投石机 | 仅 AI | 关 / 仅 AI / 仅玩家 / 所有人 |
 | 玩家人口上限 | 300 | 200 ~ 500 |
 | AI 人口上限 | 200 | 100 ~ 300 |
 | AI 造兵速度 | ×2 | ×1 ~ ×3 |
@@ -63,7 +63,7 @@ This is a **game mode**: pick "Fortress Mode" in a custom lobby. Every standard 
 |---|---|---|
 | Human unit health | ×2 | ×1 – ×5 |
 | Human defense health (walls, gates, towers, outposts, keeps) | ×4 | ×1 – ×10 |
-| Disable trebuchets | Everyone | Off / AI only / Humans only / Everyone |
+| Disable trebuchets | AI only | Off / AI only / Humans only / Everyone |
 | Human population cap | 300 | 200 – 500 |
 | AI population cap | 200 | 100 – 300 |
 | AI unit production speed | ×2 | ×1 – ×3 |
