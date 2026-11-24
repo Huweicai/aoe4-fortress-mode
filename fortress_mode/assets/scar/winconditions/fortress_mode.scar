@@ -232,26 +232,6 @@ local function IsDefenseName(name)
 	return MatchesAny(name, DEFENSE_NAME_PATTERNS) and not MatchesAny(name, DEFENSE_NAME_EXCLUDES)
 end
 
-local _monk_heal_rates = { }
-
-local function BoostMonkHealing(player)
-	local rate = Player_GetStateModelFloat(player.id, MONK_HEAL_PROPERTY)
-	local given = _monk_heal_rates[player.index]
-	if rate ~= nil and rate > 0 and (given == nil or rate < given) then
-		_monk_heal_rates[player.index] = rate * MONK_HEAL_FACTOR
-		Player_SetStateModelFloat(player.id, MONK_HEAL_PROPERTY, rate * MONK_HEAL_FACTOR)
-		print(string.format("[FORT] monk healing: player %d %.1f -> %.1f", player.index, rate, rate * MONK_HEAL_FACTOR))
-	end
-end
-
-function FORT_CheckMonkHealing()
-	for _, player in ipairs(PLAYERS) do
-		if not player.isEliminated and not AI_IsAIPlayer(player.id) then
-			Guard("monk healing", BoostMonkHealing, player)
-		end
-	end
-end
-
 local function GrantUpgrades(player_id, names)
 	for _, name in ipairs(names) do
 		local ok, upgrade = pcall(BP_GetUpgradeBlueprint, name)
@@ -364,6 +344,26 @@ local function DebugLog(message)
 		local line = string.format("[%.0fs] %s", World_GetGameTime(), message)
 		pcall(print, "[FORT] " .. line)
 		pcall(Misc_AppendToFile, DEBUG_LOG_FILE, line .. "\n")
+	end
+end
+
+local _monk_heal_rates = { }
+
+local function BoostMonkHealing(player)
+	local rate = Player_GetStateModelFloat(player.id, MONK_HEAL_PROPERTY)
+	local given = _monk_heal_rates[player.index]
+	if rate ~= nil and rate > 0 and (given == nil or rate < given) then
+		_monk_heal_rates[player.index] = rate * MONK_HEAL_FACTOR
+		Player_SetStateModelFloat(player.id, MONK_HEAL_PROPERTY, rate * MONK_HEAL_FACTOR)
+		print(string.format("[FORT] monk healing: player %d %.1f -> %.1f", player.index, rate, rate * MONK_HEAL_FACTOR))
+	end
+end
+
+function FORT_CheckMonkHealing()
+	for _, player in ipairs(PLAYERS) do
+		if not player.isEliminated and not AI_IsAIPlayer(player.id) then
+			Guard("monk healing", BoostMonkHealing, player)
+		end
 	end
 end
 
