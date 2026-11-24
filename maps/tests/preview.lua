@@ -20,7 +20,7 @@ if SetUpGrid == nil then
 end
 dofile(layout)
 print = real_print
-local glyph = { tt_plains = ".", tt_impasse_mountains = "#", tt_impasse_trees_plains = "T", tt_hills_low_rolling = "h", tt_gold_large = "G", tt_stone_large = "S" }
+local glyph = { tt_plains = ".", tt_impasse_mountains = "#", tt_impasse_trees_plains = "T", tt_hills_low_rolling = "h", tt_gold_large = "G", tt_stone_large = "S", tt_lake_deep = "~" }
 print(string.format("grid %dx%d, %d m per square", gridSize, gridSize, math.floor(size / gridSize)))
 for r = 1, gridSize do
 	local line = { }
