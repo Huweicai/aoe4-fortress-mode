@@ -4,33 +4,23 @@ Run: python3 maps/tools/make_covers.py <library dir>
 The library dir is scar/terrainlayout/library extracted from Data.sga (tools/sga.py). Needs lua, Pillow and the macOS
 Hiragino Sans GB font. Writes maps/<map>/publish/cover.png and maps/<map>/publish/mod.png.
 """
+import random
 import subprocess
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont
+
+import map_art
 
 ROOT = Path(__file__).resolve().parents[2]
+GOLD = map_art.GOLD
 WIDTH, HEIGHT = 1920, 1080
 FONT_PATH = "/System/Library/Fonts/Hiragino Sans GB.ttc"
 FONT_REGULAR, FONT_BOLD = 0, 1
 
-BACKGROUND = (16, 18, 24)
 TEXT = (244, 236, 222)
-MUTED = (186, 176, 164)
-GOLD = (236, 196, 120)
-TERRAIN = {
-    ".": (112, 138, 78),
-    "h": (132, 150, 86),
-    "T": (52, 84, 46),
-    "#": (96, 86, 80),
-    "~": (46, 92, 140),
-    ",": (164, 160, 98),
-    "G": (230, 190, 60),
-    "S": (176, 176, 184),
-}
-DEFENDER = (80, 150, 255)
-ATTACKER = (225, 60, 50)
+MUTED = (176, 170, 158)
 
 # Each map is drawn for the match it is made for: two defenders against four attackers.
 TEAMS = "1,1,2,2,2,2"
@@ -90,47 +80,14 @@ def layout(map_name, library, seed):
     return [line for line in output.splitlines()[1:] if line]
 
 
-def draw_layout(rows, size):
-    cells = len(rows)
-    scale = 8
-    image = Image.new("RGB", (cells * scale, cells * scale))
-    draw = ImageDraw.Draw(image)
-    starts, resources = [], []
-    for r, line in enumerate(rows):
-        for c, char in enumerate(line):
-            if char.isdigit():
-                starts.append((r, c, char))
-                char = "."
-            elif char in "GS":
-                resources.append((r, c, char))
-                char = "."
-            draw.rectangle([c * scale, r * scale, (c + 1) * scale, (r + 1) * scale], fill=TERRAIN.get(char, TERRAIN["."]))
-    # Soften the coarse squares a little, as the game blends them too.
-    image = image.filter(ImageFilter.GaussianBlur(1)).resize((size, size), Image.LANCZOS)
-    draw = ImageDraw.Draw(image)
-    cell = size / cells
-    for r, c, kind in resources:
-        x, y, radius = (c + 0.5) * cell, (r + 0.5) * cell, cell * 0.7
-        draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=TERRAIN[kind], outline=(40, 34, 20), width=3)
-    for r, c, player in starts:
-        x, y = (c + 0.5) * cell, (r + 0.5) * cell
-        color = DEFENDER if player in DEFENDERS else ATTACKER
-        radius = cell * 1.6
-        draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=color, outline=(255, 255, 255), width=4)
-        draw.text((x, y), "守" if player in DEFENDERS else "攻", font=font(int(radius * 0.9)), fill=(255, 255, 255), anchor="mm")
-    return image
-
-
 def cover(map_name, info, rows):
-    canvas = Image.new("RGB", (WIDTH, HEIGHT), BACKGROUND)
+    """The map in the game's own icon style on the left, the pitch on the right, all in navy and gold."""
+    canvas = map_art._cloth(WIDTH, random.Random(1)).crop((0, 0, WIDTH, HEIGHT))
     map_size = 920
-    map_image = draw_layout(rows, map_size)
-    shadow = Image.new("RGBA", (map_size + 80, map_size + 80), (0, 0, 0, 0))
-    ImageDraw.Draw(shadow).rounded_rectangle([40, 40, map_size + 40, map_size + 40], radius=24, fill=(0, 0, 0, 200))
-    canvas.paste(shadow.filter(ImageFilter.GaussianBlur(24)), (40, 40), shadow.filter(ImageFilter.GaussianBlur(24)))
-    mask = Image.new("L", (map_size, map_size), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, map_size, map_size], radius=24, fill=255)
-    canvas.paste(map_image, (80, 80), mask)
+    map_image = map_art.draw_map(rows, map_size, DEFENDERS)
+    frame = ImageDraw.Draw(canvas)
+    frame.rectangle([66, 66, 80 + map_size + 14, 80 + map_size + 14], outline=GOLD, width=3)
+    canvas.paste(map_image, (80, 80))
 
     draw = ImageDraw.Draw(canvas)
     x = 1080
@@ -141,21 +98,17 @@ def cover(map_name, info, rows):
     draw.text((x, 424), info["tagline_en"], font=fitted(draw, info["tagline_en"], 26, 760), fill=MUTED)
     y = 520
     for title, title_en, body in info["points"]:
-        draw.rectangle([x, y + 6, x + 8, y + 86], fill=GOLD)
+        draw.rectangle([x, y + 6, x + 6, y + 86], fill=GOLD)
         draw.text((x + 32, y), title, font=font(40), fill=TEXT)
         draw.text((x + 32 + draw.textlength(title, font=font(40)) + 20, y + 12), title_en, font=font(26), fill=GOLD)
         draw.text((x + 32, y + 56), body, font=font(28, FONT_REGULAR), fill=MUTED)
         y += 120
-    legend = ((DEFENDER, "守方 Defenders"), (ATTACKER, "攻方 Attackers"), (TERRAIN["~"], "深水 Deep water"),
-              (TERRAIN["#"], "山 Cliffs"), (TERRAIN[","], "高地 Plateau"), (TERRAIN["G"], "金矿 Gold"), (TERRAIN["S"], "石矿 Stone"))
-    present = set("".join(rows))
-    marks = {TERRAIN["~"]: "~", TERRAIN["#"]: "#", TERRAIN[","]: ","}
-    legend = [item for item in legend if item[0] not in marks or marks[item[0]] in present]
-    for index, (color, label) in enumerate(legend):
-        lx, ly = 1080 + (index % 3) * 260, 880 + (index // 3) * 44
-        draw.ellipse([lx, ly, lx + 26, ly + 26], fill=color)
-        draw.text((lx + 38, ly + 13), label, font=font(22, FONT_REGULAR), fill=MUTED, anchor="lm")
-    draw.text((1080, 990), "为《堡垒模式》设计 · Made for Fortress Mode", font=font(24, FONT_REGULAR), fill=MUTED)
+    for index, (colour, label) in enumerate(((map_art.DEFENDER, "守方 Defenders"), (map_art.ATTACKER, "攻方 Attackers"))):
+        lx = 1080 + index * 300
+        draw.polygon([(lx, 890), (lx + 30, 900), (lx, 910)], fill=colour, outline=GOLD)
+        draw.line([(lx, 884), (lx, 922)], fill=GOLD, width=3)
+        draw.text((lx + 44, 902), label, font=font(24, FONT_REGULAR), fill=MUTED, anchor="lm")
+    draw.text((1080, 980), "为《堡垒模式》设计 · Made for Fortress Mode", font=font(24, FONT_REGULAR), fill=MUTED)
     return canvas
 
 
@@ -174,6 +127,7 @@ def main():
         image = cover(map_name, info, rows)
         image.save(publish / "cover.png", optimize=True)
         image.save(publish / "mod.png", optimize=True)
+        map_art.draw_map(rows, 512, DEFENDERS).save(publish / "icon.png", optimize=True)
 
 
 if __name__ == "__main__":
