@@ -1,0 +1,24 @@
+<DataWarehouse>
+<DataObject Name="fortress_mode" Type="Mod" Id="14976819631908412645" Version="1">
+<DataProperty Name="m_description" Type="Object">
+<DataValue Name="util::ReflectLocString">1612580248963186494</DataValue>
+<DataObject Name="" Type="util::ReflectLocString" Id="1612580248963186494" OwnerId="14976819631908412645">
+<DataProperty Name="m_modPart2" Type="UInt32" Value="524180108"/>
+<DataProperty Name="m_modPart3" Type="UInt32" Value="1121564512"/>
+<DataProperty Name="m_modPart0" Type="UInt32" Value="2134649364"/>
+<DataProperty Name="m_modPart1" Type="UInt32" Value="1294048110"/>
+<DataProperty Name="m_locStringKey" Type="Int32" Value="2"/>
+</DataObject>
+</DataProperty>
+<DataProperty Name="m_name" Type="Object">
+<DataValue Name="util::ReflectLocString">3415882252051744175</DataValue>
+<DataObject Name="" Type="util::ReflectLocString" Id="3415882252051744175" OwnerId="14976819631908412645">
+<DataProperty Name="m_modPart2" Type="UInt32" Value="524180108"/>
+<DataProperty Name="m_modPart3" Type="UInt32" Value="1121564512"/>
+<DataProperty Name="m_modPart0" Type="UInt32" Value="2134649364"/>
+<DataProperty Name="m_modPart1" Type="UInt32" Value="1294048110"/>
+<DataProperty Name="m_locStringKey" Type="Int32" Value="1"/>
+</DataObject>
+</DataProperty>
+</DataObject>
+</DataWarehouse>

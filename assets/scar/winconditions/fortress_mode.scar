@@ -1,0 +1,1380 @@
+-- Fortress Mode: lobby-configurable buffs for human players and separate population caps.
+-- All changes are applied once in FORT_OnInit, on every peer, so the simulation stays in sync.
+
+-- The official mode owns win conditions, starting conditions and every standard lobby option.
+import("gamemodes/standard_mode.scar")
+
+Core_RegisterModule("FORT")
+
+local DEFAULT_POP_CAP = 200
+
+local TREBUCHET_OFF = "off"
+local TREBUCHET_AI = "ai"
+local TREBUCHET_HUMANS = "humans"
+local TREBUCHET_ALL = "all"
+
+local DEFENSE_TYPES = { "building", "defensive_structure", "wall" }
+-- Short blueprint names of walls, gates, towers, outposts and keeps, checked against ReferenceAttributes.sga.
+-- Landmarks are not included. Jin defenses do not use the building_defense_ prefix.
+local DEFENSE_NAME_PATTERNS = {
+	"^building_defense_", "^building_keep_", "^building_outpost_", "^building_fortified_outpost_",
+	"^building_palisade_", "^building_stone_tower_", "^building_stone_wall_",
+}
+-- Field placeables that share the building_defense_ prefix.
+local DEFENSE_NAME_EXCLUDES = { "pavise", "palings", "campfire" }
+-- Defenses with extra health deal a quarter of their boiling oil damage: oil would otherwise melt whole waves.
+-- Every other weapon keeps its damage. All weapons sit on hardpoints from construction on; upgrades only enable them.
+local DEFENSE_OIL_DAMAGE_FACTOR = 0.25
+-- The oil weapons are weapon_keep_murder_hole, weapon_outpost_murder_hole and weapon_walltower_murder_hole.
+local DEFENSE_OIL_WEAPON = "murder_hole"
+-- Hidden signals: a human loses several scouts at once, and the count picks the signal.
+-- Scouts are counted every assault step rather than through death events, which a deletion may not raise.
+-- The window starts at the first loss and leaves time for a whole selection to die.
+local SCOUT_SIGNAL_WINDOW = 3
+-- Assaults are spread out so that no simulation tick has to carry a whole army:
+-- one AI's army is sorted per step, then this many squads get their order per step.
+local ASSAULT_STEP_INTERVAL = 0.5
+local ASSAULT_STEP_SQUADS = 20
+local BONUS_WAVE_COOLDOWN = 120
+-- Shared out evenly between the AIs that can still send waves; bonus waves never count as wave survivors.
+local BONUS_WAVE_TOTAL = 400
+-- An assaulting army is kept under command this long, so that the AI cannot simply call it back.
+local ASSAULT_COMMAND_TIME = 180
+-- Periodic assaults leave the early game alone, whatever their interval.
+local PERIODIC_ASSAULT_FIRST = 480
+local BONUS_WAVE_SCOUTS = 5
+-- For testing: the human who loses this many scouts gets stone.
+local STONE_GIFT_SCOUTS = 3
+local STONE_GIFT_AMOUNT = 1000
+local ASSAULT_EXCLUDED_TYPES = { "scout", "monk", "naval_unit", "worker" }
+local RULE_FAILURE_LIMIT = 3
+-- Diagnostics are written only in a -dev launch, the only one that keeps print output (LogFiles\AoE4_*\scarlog).
+-- They only log, so peers that differ here still run the same simulation.
+local function IsDevLaunch()
+	if type(Misc_IsDevMode) == "function" and Misc_IsDevMode() then
+		return true
+	end
+	return type(Misc_IsCommandLineOptionSet) == "function" and Misc_IsCommandLineOptionSet("dev")
+end
+local dev_ok, dev_launch = pcall(IsDevLaunch)
+local DEBUG_WAVES = dev_ok and dev_launch == true
+local DEBUG_LOG_FILE = "scarlog:fortress_mode_debug.txt"
+local DEBUG_PERF_WINDOW = 30
+local DEBUG_LAG_SECONDS = 1.5
+local FAILURE_MESSAGE_LENGTH = 200
+local AI_VILLAGER_CAP = 100
+local START_VILLAGER_DELAY = 1
+local AI_VILLAGER_CHECK_INTERVAL = 5
+-- One AI per pass, so that a pass never has to find targets for every AI in the same simulation tick.
+local WAVE_ORDER_INTERVAL = 5
+-- Survivors of earlier waves, of any AI, up to this share of a wave cost nothing; beyond it each one replaces a new unit.
+local WAVE_SURVIVOR_ALLOWANCE = 0.2
+-- The AI pulls wave squads back once they near the enemy. A group that got no closer since its last check
+-- is ordered forward again, unless it is already fighting at its target.
+local WAVE_MIN_PROGRESS = 5
+-- Sieging walls keeps a group this far from the building behind them.
+local WAVE_ENGAGED_DISTANCE = 120
+-- A group the AI keeps pulling back is left alone for a while, so that it does not path again every pass for nothing.
+local WAVE_PULLBACK_TRIES = 3
+local WAVE_PULLBACK_PAUSE = 60
+local WAVE_BATCH_SIZE = 10
+local WAVE_BATCH_INTERVAL = 1
+local WAVE_SPAWN_RADIUS = 30
+local WAVE_SPAWN_POINTS = 8
+-- Siege comes on top of the wave size and grows by one of each per wave, up to a cap.
+local WAVE_RAM_COUNT = 2
+local WAVE_RAM_MAX = 18
+-- Age IV bombards; a civ without them sends no bombard.
+local WAVE_BOMBARD_COUNT = 1
+local WAVE_BOMBARD_MAX = 10
+-- Hidden: every AI's infantry has this much more health.
+local AI_INFANTRY_HEALTH = 1.5
+local WAVE_INFANTRY = {
+	{ type = "scar_manatarms", share = 0.30 },
+	{ type = "scar_spearman", share = 0.25 },
+	{ type = "scar_archer", share = 0.25 },
+}
+-- Every few waves an elite wave comes in Age IV units, whatever the AI's age.
+local WAVE_ELITE_EVERY = 5
+local WAVE_ELITE = {
+	{ type = "scar_knight", share = 0.30 },
+	{ type = "scar_manatarms", share = 0.30 },
+	{ type = "scar_handcannon", share = 0.20 },
+	{ type = "scar_crossbowman", share = 0.20 },
+}
+local UNIT_TYPES = { "military", "siege" }
+local TREBUCHET_ENTITY_TYPES = { "siege", "military", "annihilation_condition" }
+local TREBUCHET_SQUAD_TYPES = { "siege", "military" }
+
+-- Option keys must match tools/gen_mod.py.
+local UNIT_HEALTH_VALUES = {
+	unit_hp_100 = 1, unit_hp_150 = 1.5, unit_hp_200 = 2, unit_hp_300 = 3, unit_hp_400 = 4, unit_hp_500 = 5,
+}
+local DEFENSE_HEALTH_VALUES = {
+	defense_hp_100 = 1, defense_hp_200 = 2, defense_hp_300 = 3, defense_hp_400 = 4,
+	defense_hp_500 = 5, defense_hp_800 = 8, defense_hp_1000 = 10,
+}
+local TREBUCHET_VALUES = {
+	trebuchet_off = TREBUCHET_OFF, trebuchet_ai = TREBUCHET_AI,
+	trebuchet_humans = TREBUCHET_HUMANS, trebuchet_all = TREBUCHET_ALL,
+}
+local HUMAN_POP_VALUES = {
+	human_pop_200 = 200, human_pop_250 = 250, human_pop_300 = 300, human_pop_400 = 400, human_pop_500 = 500,
+}
+local AI_POP_VALUES = {
+	ai_pop_100 = 100, ai_pop_150 = 150, ai_pop_200 = 200, ai_pop_250 = 250, ai_pop_300 = 300,
+}
+
+local AI_PRODUCTION_VALUES = {
+	ai_production_100 = 1, ai_production_125 = 1.25, ai_production_150 = 1.5,
+	ai_production_200 = 2, ai_production_300 = 3,
+}
+
+local SURVIVE_TIME_VALUES = {
+	survive_off = 0, survive_5 = 300, survive_30 = 1800, survive_45 = 2700, survive_60 = 3600, survive_90 = 5400, survive_120 = 7200,
+}
+
+local MINERAL_VALUES = {
+	minerals_100 = 1, minerals_150 = 1.5, minerals_200 = 2, minerals_300 = 3, minerals_500 = 5,
+}
+-- Map gold and stone deposits. Pickups, Malian pit mines and Mongol ovoos are not neutral deposits.
+local MINERAL_DEPOSIT_PATTERNS = { "^resource_gold_deposit", "^resource_stone_deposit" }
+
+local START_VILLAGER_VALUES = {
+	start_villagers_6 = 6, start_villagers_10 = 10, start_villagers_16 = 16, start_villagers_20 = 20, start_villagers_30 = 30,
+}
+
+local WAVE_SIZE_VALUES = {
+	wave_size_0 = 0, wave_size_50 = 50, wave_size_100 = 100, wave_size_150 = 150, wave_size_200 = 200,
+}
+local WAVE_FIRST_VALUES = {
+	wave_first_1 = 60, wave_first_5 = 300, wave_first_10 = 600, wave_first_15 = 900, wave_first_20 = 1200,
+}
+local ASSAULT_INTERVAL_VALUES = {
+	assault_off = 0, assault_1 = 60, assault_2 = 120, assault_3 = 180, assault_5 = 300, assault_10 = 600,
+}
+local WAVE_INTERVAL_VALUES = {
+	wave_interval_1 = 60, wave_interval_2 = 120, wave_interval_5 = 300, wave_interval_8 = 480, wave_interval_10 = 600, wave_interval_15 = 900,
+}
+
+local _settings = {
+	unit_health = 2,
+	defense_health = 4,
+	trebuchet = TREBUCHET_ALL,
+	human_pop = 300,
+	ai_pop = 200,
+	ai_production = 2,
+	start_villagers = 16,
+	minerals = 2,
+	survive_time = 3600,
+	wave_size = 100,
+	wave_first = 600,
+	wave_interval = 60,
+	assault_interval = 120,
+}
+
+local function ReadEnum(section, key, values, fallback)
+	local option = section[key]
+	if option == nil then
+		return fallback
+	end
+	for item_key, value in pairs(values) do
+		if option.enum_value == option.enum_items[item_key] then
+			return value
+		end
+	end
+	return fallback
+end
+
+local function ReadOptions()
+	local options = { }
+	Setup_GetWinConditionOptions(options)
+	local section = options.section_fortress
+	if section == nil then
+		return
+	end
+	_settings.unit_health = ReadEnum(section, "option_unit_health", UNIT_HEALTH_VALUES, _settings.unit_health)
+	_settings.defense_health = ReadEnum(section, "option_defense_health", DEFENSE_HEALTH_VALUES, _settings.defense_health)
+	_settings.trebuchet = ReadEnum(section, "option_trebuchet", TREBUCHET_VALUES, _settings.trebuchet)
+	_settings.human_pop = ReadEnum(section, "option_human_pop", HUMAN_POP_VALUES, _settings.human_pop)
+	_settings.ai_pop = ReadEnum(section, "option_ai_pop", AI_POP_VALUES, _settings.ai_pop)
+	_settings.ai_production = ReadEnum(section, "option_ai_production", AI_PRODUCTION_VALUES, _settings.ai_production)
+	_settings.start_villagers = ReadEnum(section, "option_start_villagers", START_VILLAGER_VALUES, _settings.start_villagers)
+	_settings.minerals = ReadEnum(section, "option_minerals", MINERAL_VALUES, _settings.minerals)
+	_settings.survive_time = ReadEnum(section, "option_survive_time", SURVIVE_TIME_VALUES, _settings.survive_time)
+	_settings.wave_size = ReadEnum(section, "option_wave_size", WAVE_SIZE_VALUES, _settings.wave_size)
+	_settings.wave_first = ReadEnum(section, "option_wave_first", WAVE_FIRST_VALUES, _settings.wave_first)
+	_settings.wave_interval = ReadEnum(section, "option_wave_interval", WAVE_INTERVAL_VALUES, _settings.wave_interval)
+	_settings.assault_interval = ReadEnum(section, "option_assault_interval", ASSAULT_INTERVAL_VALUES, _settings.assault_interval)
+end
+
+-- Collects blueprints of the given types, without duplicates.
+-- A type name that does not exist in this game version is skipped instead of aborting the mode.
+local function CollectBlueprints(query, types, accept)
+	local result = { }
+	local seen = { }
+	for _, type_name in ipairs(types) do
+		local ok, blueprints = pcall(query, type_name)
+		if ok and blueprints ~= nil then
+			for _, blueprint in pairs(blueprints) do
+				local name = BP_GetName(blueprint)
+				if not seen[name] and accept(blueprint, name) then
+					seen[name] = true
+					table.insert(result, blueprint)
+				end
+			end
+		else
+			print("[FORT] Unknown blueprint type: " .. type_name)
+		end
+	end
+	return result
+end
+
+local function MatchesAny(name, patterns)
+	for _, pattern in ipairs(patterns) do
+		if string.find(name, pattern) ~= nil then
+			return true
+		end
+	end
+	return false
+end
+
+local function IsDefenseName(name)
+	return MatchesAny(name, DEFENSE_NAME_PATTERNS) and not MatchesAny(name, DEFENSE_NAME_EXCLUDES)
+end
+
+local function ApplyMultiplier(blueprints, player_id, modifier_type, factor)
+	for _, ebp in ipairs(blueprints) do
+		local modifier = Modifier_Create(MAT_EntityType, modifier_type, MUT_Multiplication, false, factor, ebp)
+		Modifier_ApplyToPlayer(modifier, player_id, 0)
+	end
+end
+
+-- The modifier is an offset, so it is measured from the actual cap in case a tuning pack changed it.
+local function ApplyPopCap(player_id, cap)
+	local current = Player_GetMaxPopulationCap(player_id, CT_Personnel)
+	if current == nil or current <= 0 then
+		current = DEFAULT_POP_CAP
+	end
+	if cap ~= current then
+		local modifier = Modifier_Create(MAT_Player, "max_personnel_cap_player_modifier", MUT_Addition, false, cap - current, "")
+		Modifier_ApplyToPlayer(modifier, player_id, 0)
+	end
+end
+
+local function IsTrebuchetBlocked(is_ai)
+	if is_ai then
+		return _settings.trebuchet == TREBUCHET_AI or _settings.trebuchet == TREBUCHET_ALL
+	end
+	return _settings.trebuchet == TREBUCHET_HUMANS or _settings.trebuchet == TREBUCHET_ALL
+end
+
+-- SCAR pauses the whole match on an uncaught error, so every entry point runs through Guard.
+-- A failing feature is reported on screen once and the rest of the mode keeps working.
+local _reported_failures = { }
+local function ReportFailure(label, err)
+	if _reported_failures[label] then
+		return
+	end
+	_reported_failures[label] = true
+	local message = string.sub("[Fortress Mode] " .. label .. ": " .. tostring(err), 1, FAILURE_MESSAGE_LENGTH)
+	pcall(print, message)
+	-- An event cue sits in the notification list at the side, unlike a system message in the middle of the screen.
+	pcall(UI_CreateEventCue, message, Loc_Empty(), "", "", "")
+end
+
+-- Real time, for diagnostics only: it differs between peers, so nothing in the simulation may depend on it.
+local function RealTime()
+	if not DEBUG_WAVES then
+		return nil
+	end
+	-- SCAR has no os library in a normal match.
+	if type(app_currenttime) == "function" then
+		return app_currenttime()
+	end
+	if type(os) == "table" and type(os.clock) == "function" then
+		return os.clock()
+	end
+	return nil
+end
+
+local _guard_depth = 0
+local _script_seconds = { }
+
+local function Guard(label, fn, ...)
+	local started = _guard_depth == 0 and RealTime() or nil
+	_guard_depth = _guard_depth + 1
+	local ok, err = pcall(fn, ...)
+	_guard_depth = _guard_depth - 1
+	if started ~= nil then
+		_script_seconds[label] = (_script_seconds[label] or 0) + RealTime() - started
+	end
+	if not ok then
+		ReportFailure(label, err)
+	end
+	return ok
+end
+
+local function FormatPos(position)
+	return string.format("%.0f,%.0f", position.x, position.z)
+end
+
+local function DebugLog(message)
+	if DEBUG_WAVES then
+		local line = string.format("[%.0fs] %s", World_GetGameTime(), message)
+		pcall(print, "[FORT] " .. line)
+		pcall(Misc_AppendToFile, DEBUG_LOG_FILE, line .. "\n")
+	end
+end
+
+-- A rule that keeps failing is removed, so it cannot retry half-finished work forever.
+local _rule_failures = { }
+
+local function TrackRule(rule, label, ok)
+	_rule_failures[label] = ok and 0 or (_rule_failures[label] or 0) + 1
+	if _rule_failures[label] >= RULE_FAILURE_LIMIT then
+		pcall(Rule_Remove, rule)
+	end
+end
+
+local _ai_players = { }
+
+-- One AI failing does not stop the others.
+local function RunRuleForAIPlayers(rule, label, step)
+	local all_ok = true
+	for _, player in ipairs(_ai_players) do
+		if not player.isEliminated then
+			all_ok = Guard(label, step, player) and all_ok
+		end
+	end
+	TrackRule(rule, label, all_ok)
+end
+
+-- Hardpoints already reduced, per entity. A weapon is only readable once active, so defenses are checked again after research.
+local _oil_reduced = { }
+local _villager_squads = { }
+local _villagers_capped = { }
+
+-- The hardpoint order differs between defenses, so the oil weapon is looked up on each one.
+local function HardpointWeaponName(entity, index)
+	local weapon = Entity_GetWeaponBlueprint(entity, index)
+	return weapon ~= nil and BP_GetName(weapon) or "none"
+end
+
+local function ReduceOilDamage(entity)
+	local name = BP_GetName(Entity_GetBlueprint(entity))
+	if not IsDefenseName(name) then
+		return
+	end
+	local entity_id = Entity_GetID(entity)
+	local reduced = _oil_reduced[entity_id] or { }
+	_oil_reduced[entity_id] = reduced
+	local newly_reduced = 0
+	local weapon_names = { }
+	-- Entity_GetWeaponBlueprint counts from 0, hardpoint names from 01.
+	for index = 0, Entity_GetWeaponHardpointCount(entity) - 1 do
+		if not reduced[index] then
+			-- Weapons that are not researched yet cannot be read; they are tried again after the next research.
+			local ok, weapon_name = pcall(HardpointWeaponName, entity, index)
+			table.insert(weapon_names, ok and weapon_name or "inactive")
+			if ok and string.find(weapon_name, DEFENSE_OIL_WEAPON, 1, true) ~= nil then
+				local modifier = Modifier_Create(MAT_Weapon, "damage_weapon_modifier", MUT_Multiplication, false, DEFENSE_OIL_DAMAGE_FACTOR, string.format("hardpoint_%02d", index + 1))
+				Modifier_ApplyToEntity(modifier, entity, 0)
+				reduced[index] = true
+				newly_reduced = newly_reduced + 1
+			end
+		end
+	end
+	if newly_reduced > 0 then
+		DebugLog(string.format("oil: %s, %d hardpoints reduced: %s", name, newly_reduced, table.concat(weapon_names, " ")))
+	end
+end
+
+local function OnConstructionComplete(context)
+	if not AI_IsAIPlayer(context.player) then
+		ReduceOilDamage(context.entity)
+	end
+end
+
+function FORT_OnConstructionComplete(context)
+	Guard("oil damage", OnConstructionComplete, context)
+end
+
+-- The AI keeps queueing villagers up to a share of its population, so production is removed at the cap.
+local function UpdateVillagerCap(player)
+	local capped = Player_GetEntityCountByUnitType(player.id, "villager") >= AI_VILLAGER_CAP
+	if capped ~= (_villagers_capped[player.index] or false) then
+		_villagers_capped[player.index] = capped
+		for _, sbp in ipairs(_villager_squads) do
+			Player_SetSquadProductionAvailability(player.id, sbp, capped and ITEM_REMOVED or ITEM_DEFAULT)
+		end
+	end
+end
+
+function FORT_UpdateVillagerCaps()
+	RunRuleForAIPlayers(FORT_UpdateVillagerCaps, "villager cap", UpdateVillagerCap)
+end
+
+local _wave_turn = 0
+-- AIs allied with every human never attack, so they take no turn.
+local _wave_attackers = { }
+local _spawn_queue = { }
+
+local function ResolveSquad(types, player_id)
+	local ok, sbp = pcall(Cardinal_ConvertTypeToSquadBlueprint, types, player_id)
+	return ok and sbp or nil
+end
+
+local function AddSquads(units, sbp, count)
+	for _ = 1, count do
+		table.insert(units, { sbp = sbp, numSquads = 1 })
+	end
+end
+
+-- Waves spawned so far, across all AIs.
+local _wave_number = 0
+
+local function BuildSiegeUnits(player_id)
+	local units = { }
+	local ram = ResolveSquad({ "scar_ram" }, player_id)
+	if ram ~= nil then
+		AddSquads(units, ram, math.min(WAVE_RAM_COUNT + _wave_number, WAVE_RAM_MAX))
+	end
+	local bombard = ResolveSquad({ "scar_bombard", "scar_age4" }, player_id)
+	if bombard ~= nil then
+		AddSquads(units, bombard, math.min(WAVE_BOMBARD_COUNT + _wave_number, WAVE_BOMBARD_MAX))
+	end
+	return units
+end
+
+-- Infantry the civ does not have is replaced by the first kind it does have.
+local function BuildArmyUnits(player_id, count, mix, age_number)
+	local units = { }
+	local age = "scar_age" .. age_number
+	local fallback = nil
+	local squads = { }
+	local total_share = 0
+	for index, entry in ipairs(mix) do
+		squads[index] = ResolveSquad({ entry.type, age }, player_id)
+		fallback = fallback or squads[index]
+		total_share = total_share + entry.share
+	end
+	if fallback == nil then
+		return units
+	end
+	local remaining = count
+	for index, entry in ipairs(mix) do
+		local share = index == #mix and remaining or math.floor(count * entry.share / total_share)
+		AddSquads(units, squads[index] or fallback, share)
+		remaining = remaining - share
+	end
+	return units
+end
+
+-- One force per attacker and target human, kept in arrays so that every peer issues orders in the same sequence.
+local _wave_forces = { }
+-- The army each AI sent in its last assault, ordered like a wave until it is released back to the AI.
+local _assault_forces = { }
+
+local function WaveForce(attacker, target, bonus)
+	bonus = bonus == true
+	_wave_forces[attacker.index] = _wave_forces[attacker.index] or { }
+	for _, force in ipairs(_wave_forces[attacker.index]) do
+		if force.target == target and force.bonus == bonus then
+			return force
+		end
+	end
+	local suffix = attacker.index .. "_" .. target.index .. (bonus and "_bonus" or "")
+	local force = {
+		attacker = attacker,
+		target = target,
+		bonus = bonus,
+		army = SGroup_CreateIfNotFound("fort_wave_army_" .. suffix),
+		siege = SGroup_CreateIfNotFound("fort_wave_siege_" .. suffix),
+		last_orders = { },
+		last_distances = { },
+	}
+	table.insert(_wave_forces[attacker.index], force)
+	return force
+end
+
+local function FirstTownCenter(player_id)
+	local town_centers = Player_GetEntitiesFromType(player_id, "town_center")
+	local town_center = nil
+	if EGroup_CountSpawned(town_centers) > 0 then
+		town_center = EGroup_GetSpawnedEntityAt(town_centers, 1)
+	end
+	EGroup_Destroy(town_centers)
+	return town_center
+end
+
+-- An AI's waves end for good with its main town center, even if it still holds another one elsewhere.
+-- Nomad starts have no town center at first, so the first one that appears becomes the main one.
+local _capital_ids = { }
+
+local function CapitalTownCenter(player)
+	local capital_id = _capital_ids[player.index]
+	if capital_id == nil then
+		local town_center = FirstTownCenter(player.id)
+		if town_center ~= nil then
+			_capital_ids[player.index] = Entity_GetID(town_center)
+		end
+		return town_center
+	end
+	if Entity_IsValid(capital_id) then
+		local town_center = Entity_FromID(capital_id)
+		if Entity_IsAlive(town_center) then
+			return town_center
+		end
+	end
+	return nil
+end
+
+local function SpawnPositionsAround(center)
+	local positions = { }
+	for index = 1, WAVE_SPAWN_POINTS do
+		local angle = 2 * math.pi * index / WAVE_SPAWN_POINTS
+		table.insert(positions, World_Pos(center.x + WAVE_SPAWN_RADIUS * math.cos(angle), center.y, center.z + WAVE_SPAWN_RADIUS * math.sin(angle)))
+	end
+	return positions
+end
+
+-- Wave infantry alive or still queued, across all AIs. Siege is extra and not counted.
+local function CountWaveUnits()
+	local total = 0
+	for _, forces in pairs(_wave_forces) do
+		for _, force in ipairs(forces) do
+			if not force.bonus then
+				total = total + SGroup_CountSpawned(force.army)
+			end
+		end
+	end
+	for _, batch in ipairs(_spawn_queue) do
+		if batch.group ~= batch.force.siege and not batch.force.bonus then
+			total = total + #batch.units
+		end
+	end
+	return total
+end
+
+-- The next living AI in turn that still has a town center.
+local function NextWaveAttacker()
+	for _ = 1, #_wave_attackers do
+		_wave_turn = _wave_turn % #_wave_attackers + 1
+		local player = _wave_attackers[_wave_turn]
+		if not player.isEliminated then
+			local town_center = CapitalTownCenter(player)
+			if town_center ~= nil then
+				return player, town_center
+			end
+		end
+	end
+	return nil
+end
+
+local function IsLiveEnemyHuman(attacker_id, player)
+	return not player.isEliminated and not AI_IsAIPlayer(player.id) and Player_ObserveRelationship(attacker_id, player.id) == R_ENEMY
+end
+
+local function ClosestBuildingOf(players, position)
+	local closest = nil
+	local closest_owner = nil
+	local closest_distance = nil
+	for _, player in ipairs(players) do
+		local buildings = Player_GetEntitiesFromType(player.id, "building")
+		if EGroup_CountSpawned(buildings) > 0 then
+			local entity = EGroup_GetClosestEntity(buildings, position)
+			local distance = World_DistancePointToPoint(position, Entity_GetPosition(entity))
+			if closest == nil or distance < closest_distance then
+				closest = entity
+				closest_owner = player
+				closest_distance = distance
+			end
+		end
+		EGroup_Destroy(buildings)
+	end
+	return closest, closest_owner
+end
+
+local function LiveEnemyHumans(attacker_id)
+	local humans = { }
+	for _, player in ipairs(PLAYERS) do
+		if IsLiveEnemyHuman(attacker_id, player) then
+			table.insert(humans, player)
+		end
+	end
+	return humans
+end
+
+-- A force keeps its human; once that human is gone it turns on whichever enemy human is left.
+-- The building is kept until it falls: finding one means going through every building of a player.
+local function ForceTargetBuilding(force, position)
+	if force.building_id ~= nil and not force.building_owner.isEliminated and Entity_IsValid(force.building_id) then
+		return Entity_FromID(force.building_id)
+	end
+	local target, owner = nil, nil
+	if IsLiveEnemyHuman(force.attacker.id, force.target) then
+		target, owner = ClosestBuildingOf({ force.target }, position)
+	end
+	if target == nil then
+		target, owner = ClosestBuildingOf(LiveEnemyHumans(force.attacker.id), position)
+	end
+	force.building_id = target and Entity_GetID(target) or nil
+	force.building_owner = owner
+	return target
+end
+
+local function OrderArmy(army, target)
+	Cmd_AttackMove(army, Entity_GetPosition(target))
+end
+
+local function OrderSiege(siege, target)
+	local target_group = EGroup_CreateIfNotFound("fort_wave_target")
+	EGroup_Clear(target_group)
+	EGroup_Add(target_group, target)
+	Cmd_Attack(siege, target_group)
+end
+
+-- No AI_LockSquads here: locking squads the AI has already picked up crashed its thread, which no pcall can catch.
+local function OrderGroup(force, group, order)
+	if SGroup_CountSpawned(group) == 0 then
+		return
+	end
+	local position = SGroup_GetPosition(group)
+	local target = ForceTargetBuilding(force, position)
+	if target ~= nil then
+		order(group, target)
+	end
+	return position, target
+end
+
+local function QueueSpawnBatches(force, group, units, positions, order)
+	for first = 1, #units, WAVE_BATCH_SIZE do
+		local batch = { }
+		for index = first, math.min(first + WAVE_BATCH_SIZE - 1, #units) do
+			table.insert(batch, units[index])
+		end
+		table.insert(_spawn_queue, { force = force, group = group, units = batch, positions = positions, order = order })
+	end
+end
+
+-- The turn only advances when a wave really spawns, so an AI is not skipped while survivors fill the wave.
+local function SpawnWave()
+	local alive = CountWaveUnits()
+	local size = math.min(_settings.wave_size, math.floor(_settings.wave_size * (1 + WAVE_SURVIVOR_ALLOWANCE)) - alive)
+	if size <= 0 then
+		DebugLog(string.format("wave skipped: %d alive", alive))
+		return
+	end
+	local player, town_center = NextWaveAttacker()
+	if player == nil then
+		DebugLog("wave skipped: no AI with its main town center")
+		return
+	end
+	-- World_GetRand is synchronized between peers, unlike math.random.
+	local humans = LiveEnemyHumans(player.id)
+	if #humans == 0 then
+		DebugLog("wave skipped: no enemy human left")
+		return
+	end
+	local force = WaveForce(player, humans[World_GetRand(1, #humans)])
+	local positions = SpawnPositionsAround(Entity_GetPosition(town_center))
+	local siege_units = BuildSiegeUnits(player.id)
+	_wave_number = _wave_number + 1
+	local elite = _wave_number % WAVE_ELITE_EVERY == 0
+	local army_units
+	if elite then
+		army_units = BuildArmyUnits(player.id, size, WAVE_ELITE, 4)
+	else
+		army_units = BuildArmyUnits(player.id, size, WAVE_INFANTRY, math.max(1, math.floor(Player_GetCurrentAge(player.id))))
+	end
+	QueueSpawnBatches(force, force.siege, siege_units, positions, OrderSiege)
+	QueueSpawnBatches(force, force.army, army_units, positions, OrderArmy)
+	DebugLog(string.format("wave: player %d -> human %d at %s, siege=%d army=%d elite=%s, alive before=%d", player.index, force.target.index, FormatPos(positions[1]), #siege_units, #army_units, tostring(elite), alive))
+end
+
+-- Infantry only, in the AI's own age; the wave rotation and the siege growth are left alone.
+local function SpawnBonusWave(player, town_center, size)
+	local humans = LiveEnemyHumans(player.id)
+	if #humans == 0 then
+		return
+	end
+	local force = WaveForce(player, humans[World_GetRand(1, #humans)], true)
+	local positions = SpawnPositionsAround(Entity_GetPosition(town_center))
+	local army_units = BuildArmyUnits(player.id, size, WAVE_INFANTRY, math.max(1, math.floor(Player_GetCurrentAge(player.id))))
+	QueueSpawnBatches(force, force.army, army_units, positions, OrderArmy)
+	DebugLog(string.format("bonus wave: player %d -> human %d, army=%d", player.index, force.target.index, #army_units))
+end
+
+-- Every wave, spawned or not, sends all survivors of every AI forward again: the order passes reissue what is forgotten here.
+local function RallySurvivors()
+	for _, forces in pairs(_wave_forces) do
+		for _, force in ipairs(forces) do
+			force.last_orders = { }
+		end
+	end
+end
+
+function FORT_SpawnWave()
+	TrackRule(FORT_SpawnWave, "wave spawn", Guard("wave spawn", SpawnWave))
+	Guard("wave rally", RallySurvivors)
+end
+
+-- Batches stand in for the stagger option of UnitEntry_DeploySquads:
+-- its delayed rules would run outside Guard, where an error would pause the match.
+-- Locked once, in the tick they appear and before their first order, as official missions do. Squads the AI
+-- already uses are never locked: locking those again and again is the likely cause of an AI thread crash seen earlier.
+local function LockNewSquads(player_id, squads)
+	if AI_IsEnabled(player_id) then
+		AI_LockSquads(player_id, squads)
+	end
+end
+
+local function SpawnNextBatch()
+	local batch = table.remove(_spawn_queue, 1)
+	if batch ~= nil then
+		-- Only the new squads are ordered, at once, before the AI can pick them up.
+		local new_squads = SGroup_CreateIfNotFound("fort_wave_new")
+		SGroup_Clear(new_squads)
+		UnitEntry_DeploySquads(batch.force.attacker.id, { batch.group, new_squads }, batch.units, batch.positions)
+		Guard("wave lock", LockNewSquads, batch.force.attacker.id, new_squads)
+		OrderGroup(batch.force, new_squads, batch.order)
+	end
+end
+
+function FORT_SpawnBatch()
+	TrackRule(FORT_SpawnBatch, "wave deploy", Guard("wave deploy", SpawnNextBatch))
+end
+
+local function LogForceStatus(force, group, position, target)
+	local distance = target and World_DistancePointToPoint(position, Entity_GetPosition(target)) or -1
+	DebugLog(string.format("player %d -> human %d | %s %d at %s, %.0f from target", force.attacker.index, force.target.index,
+		group == force.army and "army" or "siege", SGroup_CountSpawned(group), FormatPos(position), distance))
+end
+
+-- The building of the last order is kept per group.
+local function OrderIfNeeded(force, group, order)
+	if SGroup_CountSpawned(group) == 0 then
+		return
+	end
+	local position = SGroup_GetPosition(group)
+	local target = ForceTargetBuilding(force, position)
+	if target == nil then
+		return
+	end
+	-- Every repeated command makes the whole group path again, so only a new target or a pulled-back group gets one.
+	local building_id = Entity_GetID(target)
+	local distance = World_DistancePointToPoint(position, Entity_GetPosition(target))
+	local last_distance = force.last_distances[group]
+	local stalled = last_distance ~= nil and distance > WAVE_ENGAGED_DISTANCE and distance > last_distance - WAVE_MIN_PROGRESS
+	force.last_distances[group] = distance
+	force.pullbacks = force.pullbacks or { }
+	local pullback = force.pullbacks[group] or { tries = 0, paused_until = 0 }
+	force.pullbacks[group] = pullback
+	local now = World_GetGameTime()
+	if not stalled then
+		pullback.tries = 0
+	end
+	local pulled_back = stalled and now >= pullback.paused_until
+	if pulled_back then
+		pullback.tries = pullback.tries + 1
+		if pullback.tries >= WAVE_PULLBACK_TRIES then
+			pullback.tries = 0
+			pullback.paused_until = now + WAVE_PULLBACK_PAUSE
+		end
+	end
+	if force.last_orders[group] ~= building_id or pulled_back then
+		order(group, target)
+		force.last_orders[group] = building_id
+		if pulled_back then
+			DebugLog(string.format("player %d -> human %d | %s pulled back at %.0f, ordered forward again%s", force.attacker.index, force.target.index,
+				group == force.army and "army" or "siege", distance, pullback.tries == 0 and " (pausing retries)" or ""))
+		end
+	end
+	if DEBUG_WAVES then
+		LogForceStatus(force, group, position, target)
+	end
+end
+
+local function OrderPlayerWaves(player)
+	local all_ok = true
+	for _, force in ipairs(_wave_forces[player.index] or { }) do
+		all_ok = Guard("wave orders", OrderIfNeeded, force, force.army, OrderArmy) and all_ok
+		all_ok = Guard("wave orders", OrderIfNeeded, force, force.siege, OrderSiege) and all_ok
+	end
+	local assault = _assault_forces[player.index]
+	if assault ~= nil then
+		if World_GetGameTime() >= assault.release_at then
+			SGroup_Clear(assault.army)
+			_assault_forces[player.index] = nil
+		else
+			all_ok = Guard("assault orders", OrderIfNeeded, assault, assault.army, OrderArmy) and all_ok
+		end
+	end
+	if not all_ok then
+		error("wave orders failed")
+	end
+end
+
+local _order_turn = 0
+
+local function OrderNextPlayerWaves()
+	for _ = 1, #_wave_attackers do
+		_order_turn = _order_turn % #_wave_attackers + 1
+		local player = _wave_attackers[_order_turn]
+		if not player.isEliminated and (_wave_forces[player.index] ~= nil or _assault_forces[player.index] ~= nil) then
+			OrderPlayerWaves(player)
+			return
+		end
+	end
+end
+
+function FORT_OrderWaves()
+	TrackRule(FORT_OrderWaves, "wave orders", Guard("wave orders", OrderNextPlayerWaves))
+end
+
+local function StartWaves()
+	Rule_AddInterval(FORT_SpawnBatch, WAVE_BATCH_INTERVAL)
+	Rule_AddInterval(FORT_SpawnWave, _settings.wave_interval)
+	FORT_SpawnWave()
+end
+
+function FORT_StartWaves()
+	Guard("wave start", StartWaves)
+end
+
+-- Units spawned by script are not part of what a match loads on its own: without this they show up as a placeholder box.
+-- Precaching only works before loading completes, so this covers every age a wave can reach, for every civ in the match.
+local function PrecacheSquad(types, player_id, precached)
+	local sbp = ResolveSquad(types, player_id)
+	if sbp ~= nil and not precached[BP_GetName(sbp)] then
+		precached[BP_GetName(sbp)] = true
+		Scar_PrecachePrematchResource(sbp)
+	end
+end
+
+local function PrecacheMatchUnits(player, precached)
+	PrecacheSquad("scar_villager", player.id, precached)
+	if not player.isHuman then
+		PrecacheSquad({ "scar_ram" }, player.id, precached)
+		PrecacheSquad({ "scar_bombard", "scar_age4" }, player.id, precached)
+		for _, entry in ipairs(WAVE_INFANTRY) do
+			for age = 1, 4 do
+				PrecacheSquad({ entry.type, "scar_age" .. age }, player.id, precached)
+			end
+		end
+		for _, entry in ipairs(WAVE_ELITE) do
+			PrecacheSquad({ entry.type, "scar_age4" }, player.id, precached)
+		end
+	end
+end
+
+function FORT_OnLoading()
+	local precached = { }
+	for _, player in ipairs(PLAYERS) do
+		Guard("precache", PrecacheMatchUnits, player, precached)
+	end
+end
+pcall(Scar_AddInit, FORT_OnLoading)
+
+local _perf = { last = nil, game = 0, real = 0, worst = 0 }
+
+local function LogPerf()
+	local now = RealTime()
+	if now == nil then
+		return
+	end
+	if _perf.last ~= nil then
+		local real = now - _perf.last
+		_perf.game = _perf.game + 1
+		_perf.real = _perf.real + real
+		_perf.worst = math.max(_perf.worst, real)
+		if real >= DEBUG_LAG_SECONDS then
+			DebugLog(string.format("lag: 1s of game took %.2fs", real))
+		end
+		if _perf.game >= DEBUG_PERF_WINDOW then
+			local parts = { }
+			for label, seconds in pairs(_script_seconds) do
+				table.insert(parts, string.format("%s=%.0fms", label, seconds * 1000))
+			end
+			table.sort(parts)
+			DebugLog(string.format("perf: %ds of game in %.1fs real, worst second %.2fs, wave units %d, script %s",
+				_perf.game, _perf.real, _perf.worst, CountWaveUnits(), table.concat(parts, " ")))
+			_perf.game = 0
+			_perf.real = 0
+			_perf.worst = 0
+			_script_seconds = { }
+		end
+	end
+	_perf.last = now
+end
+
+function FORT_LogPerf()
+	Guard("perf log", LogPerf)
+end
+
+function FORT_OnGameSetup()
+	Guard("options", ReadOptions)
+end
+
+local _unit_blueprints = { }
+local _infantry_blueprints = { }
+local _defense_blueprints = { }
+local _building_blueprints = { }
+local _trebuchet_squads = { }
+local _trebuchet_entities = { }
+
+local function CollectAllBlueprints()
+	_unit_blueprints = CollectBlueprints(BP_GetEntityBlueprintsWithType, UNIT_TYPES, function(ebp)
+		return not Entity_IsEBPOfType(ebp, "building")
+	end)
+	_infantry_blueprints = CollectBlueprints(BP_GetEntityBlueprintsWithType, { "infantry" }, function(ebp)
+		return not Entity_IsEBPOfType(ebp, "building")
+	end)
+	_defense_blueprints = CollectBlueprints(BP_GetEntityBlueprintsWithType, DEFENSE_TYPES, function(_, name)
+		return IsDefenseName(name)
+	end)
+	_villager_squads = CollectBlueprints(BP_GetSquadBlueprintsWithType, { "villager" }, function(_, name)
+		return string.find(name, "villager", 1, true) ~= nil
+	end)
+	_building_blueprints = CollectBlueprints(BP_GetEntityBlueprintsWithType, { "building" }, function()
+		return true
+	end)
+	local is_trebuchet = function(_, name)
+		return string.find(name, "^unit_") ~= nil and string.find(name, "trebuchet", 1, true) ~= nil
+	end
+	_trebuchet_squads = CollectBlueprints(BP_GetSquadBlueprintsWithType, TREBUCHET_SQUAD_TYPES, is_trebuchet)
+	_trebuchet_entities = CollectBlueprints(BP_GetEntityBlueprintsWithType, TREBUCHET_ENTITY_TYPES, is_trebuchet)
+end
+
+local function BlockTrebuchets(player_id)
+	for _, sbp in ipairs(_trebuchet_squads) do
+		Player_SetSquadProductionAvailability(player_id, sbp, ITEM_REMOVED)
+	end
+	for _, ebp in ipairs(_trebuchet_entities) do
+		Player_SetEntityProductionAvailability(player_id, ebp, ITEM_REMOVED)
+	end
+end
+
+local function SetupPlayer(player)
+	local is_ai = AI_IsAIPlayer(player.id)
+	if is_ai then
+		table.insert(_ai_players, player)
+		Guard("population", ApplyPopCap, player.id, _settings.ai_pop)
+		if _settings.ai_production ~= 1 then
+			Guard("ai production", ApplyMultiplier, _building_blueprints, player.id, "production_speed_modifier", _settings.ai_production)
+		end
+		Guard("ai infantry health", ApplyMultiplier, _infantry_blueprints, player.id, "health_maximum_modifier", AI_INFANTRY_HEALTH)
+	else
+		Guard("population", ApplyPopCap, player.id, _settings.human_pop)
+		if _settings.unit_health ~= 1 then
+			Guard("unit health", ApplyMultiplier, _unit_blueprints, player.id, "health_maximum_modifier", _settings.unit_health)
+		end
+		if _settings.defense_health ~= 1 then
+			Guard("defense health", ApplyMultiplier, _defense_blueprints, player.id, "health_maximum_modifier", _settings.defense_health)
+		end
+	end
+	if IsTrebuchetBlocked(is_ai) then
+		Guard("trebuchet", BlockTrebuchets, player.id)
+	end
+end
+
+local function LogSettings()
+	print(string.format("[FORT] unit_hp=%s defense_hp=%s trebuchet=%s human_pop=%d ai_pop=%d",
+		tostring(_settings.unit_health), tostring(_settings.defense_health), _settings.trebuchet, _settings.human_pop, _settings.ai_pop))
+	print(string.format("[FORT] blueprints: units=%d infantry=%d defenses=%d trebuchet_squads=%d trebuchet_entities=%d",
+		#_unit_blueprints, #_infantry_blueprints, #_defense_blueprints, #_trebuchet_squads, #_trebuchet_entities))
+end
+
+function FORT_OnInit()
+	Guard("blueprints", CollectAllBlueprints)
+	for _, player in ipairs(PLAYERS) do
+		Guard("player setup", SetupPlayer, player)
+	end
+
+	Guard("settings log", LogSettings)
+end
+
+local function IsEnemyOfAnyHuman(ai_player)
+	for _, player in ipairs(PLAYERS) do
+		if not AI_IsAIPlayer(player.id) and Player_ObserveRelationship(ai_player.id, player.id) == R_ENEMY then
+			return true
+		end
+	end
+	return false
+end
+
+local function CollectAttackers()
+	for _, player in ipairs(_ai_players) do
+		if IsEnemyOfAnyHuman(player) then
+			table.insert(_wave_attackers, player)
+		end
+	end
+	DebugLog(string.format("wave attackers: %d of %d AIs", #_wave_attackers, #_ai_players))
+end
+
+local function ScheduleWaves()
+	if #_wave_attackers == 0 then
+		return
+	end
+	for _, player in ipairs(_wave_attackers) do
+		Guard("wave schedule", CapitalTownCenter, player)
+	end
+	Rule_AddOneShot(FORT_StartWaves, _settings.wave_first)
+end
+
+-- Only tops up: the start position decides how many villagers a civ already has.
+local function AddStartingVillagers(player)
+	local missing = _settings.start_villagers - Player_GetEntityCountByUnitType(player.id, "villager")
+	local sbp = Cardinal_ConvertTypeToSquadBlueprint("scar_villager", player.id)
+	if missing > 0 and sbp ~= nil then
+		local group = SGroup_CreateIfNotFound("fort_start_villagers_" .. player.index)
+		UnitEntry_DeploySquads(player.id, group, { { sbp = sbp, numSquads = missing } }, SpawnPositionsAround(Player_GetStartingPosition(player.id)))
+	end
+end
+
+-- Runs just after the start so that villagers placed by the start conditions are counted.
+function FORT_AddStartingVillagers()
+	for _, player in ipairs(PLAYERS) do
+		Guard("starting villagers", AddStartingVillagers, player)
+	end
+end
+
+-- Defenses that some start conditions place before the match begins.
+local function ReduceExistingDefenses(player)
+	if not AI_IsAIPlayer(player.id) then
+		EGroup_ForEach(Player_GetEntities(player.id), function(_, _, entity)
+			Guard("oil damage", ReduceOilDamage, entity)
+		end)
+	end
+end
+
+-- Researching boiling oil, or a defense upgrade, activates weapons that could not be read when the defense was built.
+local function OnUpgradeComplete(context)
+	if scartype(context.executer) == ST_ENTITY and not World_OwnsEntity(context.executer) then
+		local player = Core_GetPlayersTableEntry(Entity_GetPlayerOwner(context.executer))
+		if player ~= nil then
+			ReduceExistingDefenses(player)
+		end
+	end
+end
+
+function FORT_OnUpgradeComplete(context)
+	Guard("oil damage", OnUpgradeComplete, context)
+end
+
+local function StartOilDamage()
+	Rule_AddGlobalEvent(FORT_OnConstructionComplete, GE_ConstructionComplete)
+	Rule_AddGlobalEvent(FORT_OnUpgradeComplete, GE_UpgradeComplete)
+	for _, player in ipairs(PLAYERS) do
+		Guard("oil damage", ReduceExistingDefenses, player)
+	end
+end
+
+function FORT_SurvivalWinnerPresentation(playerID)
+	if playerID == Game_GetLocalPlayer() then
+		Rule_AddOneShot(_gameOver_message, GAMEOVER_OBJECTIVE_TIME, {
+			_playerID = playerID,
+			_icon = nil,
+			_endType = Loc_GetString(11161277), -- "VICTORY"
+			_message = Loc_Empty(),
+			_sound = "DefendWonderVictoryEvent",
+			_dataTemplate = "stinger_victory",
+		})
+	end
+end
+
+function FORT_SurvivalLoserPresentation(playerID)
+	if playerID == Game_GetLocalPlayer() then
+		Rule_AddOneShot(_gameOver_message, GAMEOVER_OBJECTIVE_TIME, {
+			_playerID = playerID,
+			_icon = nil,
+			_endType = Loc_GetString(11165094), -- "DEFEAT"
+			_message = Loc_Empty(),
+			_sound = "DefendWonderDefeatEvent",
+			_dataTemplate = "stinger_defeat",
+		})
+	end
+end
+
+-- The side of the first surviving human wins, like a Wonder held to the end. A fallen human still wins with their allies.
+local function DeclareSurvivalWin()
+	local winner = nil
+	for _, player in ipairs(PLAYERS) do
+		if not player.isEliminated and not AI_IsAIPlayer(player.id) then
+			winner = player
+			break
+		end
+	end
+	if winner == nil then
+		return
+	end
+	Core_OnGameOver()
+	for _, player in ipairs(PLAYERS) do
+		if player == winner or Player_ObserveRelationship(player.id, winner.id) == R_ALLY then
+			Guard("survival win", Core_SetPlayerVictorious, player.id, FORT_SurvivalWinnerPresentation, WR_NONE)
+		else
+			Guard("survival win", Core_SetPlayerDefeated, player.id, FORT_SurvivalLoserPresentation, WR_NONE)
+		end
+	end
+end
+
+function FORT_SurvivalWin()
+	Guard("survival win", DeclareSurvivalWin)
+end
+
+local function IsAssaultSquad(squad)
+	if not Squad_IsOfType(squad, "military") then
+		return false
+	end
+	for _, excluded in ipairs(ASSAULT_EXCLUDED_TYPES) do
+		if Squad_IsOfType(squad, excluded) then
+			return false
+		end
+	end
+	return true
+end
+
+local _assault_players = { }
+local _assault_orders = { }
+
+local function PrepareAssault(player)
+	local humans = LiveEnemyHumans(player.id)
+	if player.isEliminated or #humans == 0 then
+		return
+	end
+	local squad_ids = { }
+	local army = SGroup_CreateIfNotFound("fort_assault_force_" .. player.index)
+	SGroup_Clear(army)
+	SGroup_ForEach(Player_GetSquads(player.id), function(_, _, squad)
+		if IsAssaultSquad(squad) then
+			table.insert(squad_ids, Squad_GetID(squad))
+			SGroup_Add(army, squad)
+		end
+	end)
+	DebugLog(string.format("assault: player %d sends %d squads", player.index, #squad_ids))
+	if #squad_ids > 0 then
+		local human = humans[World_GetRand(1, #humans)]
+		local target = ClosestBuildingOf({ human }, SGroup_GetPosition(army))
+		if target ~= nil then
+			-- The first orders go out in steps below; the order passes only step in once the army stalls or turns back.
+			_assault_forces[player.index] = {
+				attacker = player,
+				target = human,
+				army = army,
+				building_id = Entity_GetID(target),
+				building_owner = human,
+				last_orders = { [army] = Entity_GetID(target) },
+				last_distances = { },
+				release_at = World_GetGameTime() + ASSAULT_COMMAND_TIME,
+			}
+			table.insert(_assault_orders, { squad_ids = squad_ids, next_index = 1, position = Entity_GetPosition(target) })
+		end
+	end
+end
+
+local function OrderNextAssaultSquads(assault)
+	local group = SGroup_CreateIfNotFound("fort_assault")
+	SGroup_Clear(group)
+	local last_index = math.min(assault.next_index + ASSAULT_STEP_SQUADS - 1, #assault.squad_ids)
+	for index = assault.next_index, last_index do
+		local squad_id = assault.squad_ids[index]
+		if Squad_IsValid(squad_id) then
+			SGroup_Add(group, Squad_FromID(squad_id))
+		end
+	end
+	assault.next_index = last_index + 1
+	if SGroup_CountSpawned(group) > 0 then
+		Cmd_AttackMove(group, assault.position)
+	end
+end
+
+local function AssaultStep()
+	local assault = _assault_orders[1]
+	if assault ~= nil then
+		-- Removed first, so that an error cannot repeat the same step forever.
+		if assault.next_index + ASSAULT_STEP_SQUADS > #assault.squad_ids then
+			table.remove(_assault_orders, 1)
+		end
+		OrderNextAssaultSquads(assault)
+	else
+		local player = table.remove(_assault_players, 1)
+		if player ~= nil then
+			PrepareAssault(player)
+		end
+	end
+end
+
+local _bonus_wave_ready_at = 0
+
+local function BonusWaves()
+	local now = World_GetGameTime()
+	if now < _bonus_wave_ready_at then
+		return
+	end
+	local senders = { }
+	for _, player in ipairs(_wave_attackers) do
+		local town_center = not player.isEliminated and CapitalTownCenter(player) or nil
+		if town_center ~= nil then
+			table.insert(senders, { player = player, town_center = town_center })
+		end
+	end
+	if #senders == 0 then
+		return
+	end
+	_bonus_wave_ready_at = now + BONUS_WAVE_COOLDOWN
+	local size = math.floor(BONUS_WAVE_TOTAL / #senders)
+	for _, sender in ipairs(senders) do
+		Guard("bonus wave", SpawnBonusWave, sender.player, sender.town_center, size)
+	end
+end
+
+local function StoneGift(player)
+	Player_AddResource(player.id, RT_Stone, STONE_GIFT_AMOUNT)
+end
+
+-- Scout counts without an entry are free for further signals. Each action gets the human who sent the signal.
+local SCOUT_SIGNALS = {
+	[STONE_GIFT_SCOUTS] = StoneGift,
+	[BONUS_WAVE_SCOUTS] = BonusWaves,
+}
+
+local _scout_signals = { }
+local _scout_counts = { }
+
+-- Losses are seen two ways: death events, and drops in the scout count in case a deletion raises no event.
+-- The larger of the two is used, so a scout seen both ways counts once.
+local function ScoutSignal(index, now)
+	local signal = _scout_signals[index]
+	if signal == nil then
+		signal = { started = now, killed = 0, dropped = 0 }
+		_scout_signals[index] = signal
+	end
+	return signal
+end
+
+-- The event reaches every peer in the same order, so the signals need no network message.
+local function OnEntityKilled(context)
+	local owner = context.victimOwner
+	if owner == nil or context.victimSquad == nil or AI_IsAIPlayer(owner) or not Squad_IsOfType(context.victimSquad, "scout") then
+		return
+	end
+	local signal = ScoutSignal(Core_GetPlayersTableEntry(owner).index, World_GetGameTime())
+	signal.killed = signal.killed + 1
+end
+
+function FORT_OnEntityKilled(context)
+	Guard("scout signal", OnEntityKilled, context)
+end
+
+-- New scouts are simply taken as the new count.
+local function CountLostScouts(player, now)
+	local count = Player_GetEntityCountByUnitType(player.id, "scout")
+	local last = _scout_counts[player.index]
+	_scout_counts[player.index] = count
+	if last ~= nil and count < last then
+		local signal = ScoutSignal(player.index, now)
+		signal.dropped = signal.dropped + last - count
+	end
+end
+
+local function SettleScoutSignals()
+	local now = World_GetGameTime()
+	for _, player in ipairs(PLAYERS) do
+		if not player.isEliminated and not AI_IsAIPlayer(player.id) then
+			CountLostScouts(player, now)
+		end
+		local signal = _scout_signals[player.index]
+		if signal ~= nil and now - signal.started >= SCOUT_SIGNAL_WINDOW then
+			_scout_signals[player.index] = nil
+			local lost = math.max(signal.killed, signal.dropped)
+			DebugLog(string.format("scout signal: player %d lost %d scouts (events %d, count %d)", player.index, lost, signal.killed, signal.dropped))
+			local action = SCOUT_SIGNALS[lost]
+			if action ~= nil then
+				action(player)
+			end
+		end
+	end
+end
+
+function FORT_AssaultTick()
+	Guard("scout signal", SettleScoutSignals)
+	Guard("assault", AssaultStep)
+end
+
+-- A periodic assault waits while another one is still going out.
+local function PeriodicAssault()
+	if #_assault_players > 0 or #_assault_orders > 0 then
+		return
+	end
+	local candidates = { }
+	for _, player in ipairs(_wave_attackers) do
+		if not player.isEliminated and CapitalTownCenter(player) ~= nil then
+			table.insert(candidates, player)
+		end
+	end
+	if #candidates > 0 then
+		table.insert(_assault_players, candidates[World_GetRand(1, #candidates)])
+	end
+end
+
+function FORT_PeriodicAssault()
+	TrackRule(FORT_PeriodicAssault, "periodic assault", Guard("periodic assault", PeriodicAssault))
+end
+
+function FORT_StartPeriodicAssaults()
+	Guard("periodic assault", Rule_AddInterval, FORT_PeriodicAssault, _settings.assault_interval)
+	FORT_PeriodicAssault()
+end
+
+-- Runs once at the start, when every deposit of the map is in place.
+local function MultiplyMinerals()
+	local deposits = EGroup_CreateIfNotFound("fort_mineral_deposits")
+	World_GetAllNeutralEntities(deposits)
+	local changed = 0
+	EGroup_ForEach(deposits, function(_, _, entity)
+		if MatchesAny(BP_GetName(Entity_GetBlueprint(entity)), MINERAL_DEPOSIT_PATTERNS) then
+			Entity_SetRemainingResourceDepositAmount(entity, Entity_GetRemainingResourceDepositAmount(entity) * _settings.minerals)
+			changed = changed + 1
+		end
+	end)
+	-- Named groups are reused, so the group is emptied rather than destroyed.
+	EGroup_Clear(deposits)
+	DebugLog(string.format("minerals: %d deposits x%s", changed, tostring(_settings.minerals)))
+end
+
+function FORT_Start()
+	Guard("wave debug", DebugLog, string.format("start: ai=%d wave_size=%d first=%d interval=%d", #_ai_players, _settings.wave_size, _settings.wave_first, _settings.wave_interval))
+	Guard("villager cap", Rule_AddInterval, FORT_UpdateVillagerCaps, AI_VILLAGER_CHECK_INTERVAL)
+	if _settings.minerals ~= 1 then
+		Guard("minerals", MultiplyMinerals)
+	end
+	Guard("wave attackers", CollectAttackers)
+	if #_wave_attackers > 0 then
+		Guard("wave orders", Rule_AddInterval, FORT_OrderWaves, WAVE_ORDER_INTERVAL)
+	end
+	Guard("scout signal", Rule_AddGlobalEvent, FORT_OnEntityKilled, GE_EntityKilled)
+	Guard("assault", Rule_AddInterval, FORT_AssaultTick, ASSAULT_STEP_INTERVAL)
+	if _settings.assault_interval > 0 then
+		Guard("periodic assault", Rule_AddOneShot, FORT_StartPeriodicAssaults, PERIODIC_ASSAULT_FIRST)
+	end
+	if _settings.wave_size > 0 and #_ai_players > 0 then
+		Guard("wave schedule", ScheduleWaves)
+	end
+	if _settings.defense_health > 1 then
+		Guard("oil damage", StartOilDamage)
+	end
+	if _settings.survive_time > 0 then
+		Guard("survival win", Rule_AddOneShot, FORT_SurvivalWin, _settings.survive_time)
+	end
+	Guard("starting villagers", Rule_AddOneShot, FORT_AddStartingVillagers, START_VILLAGER_DELAY)
+	if DEBUG_WAVES then
+		Guard("perf log", Rule_AddInterval, FORT_LogPerf, 1)
+	end
+end
+
+function FORT_OnGameOver()
+	for _, rule in ipairs({ FORT_AssaultTick, FORT_StartPeriodicAssaults, FORT_PeriodicAssault, FORT_LogPerf, FORT_AddStartingVillagers, FORT_SurvivalWin, FORT_UpdateVillagerCaps, FORT_StartWaves, FORT_SpawnWave, FORT_SpawnBatch, FORT_OrderWaves }) do
+		pcall(Rule_Remove, rule)
+	end
+end

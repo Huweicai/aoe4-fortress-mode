@@ -1,0 +1,103 @@
+﻿ID,Pipeline,PipelineStage,Notes,TranslationNotes,Tags,Text
+1,,,,,,Fortress Mode
+2,,,,,,"Co-op against the AI behind tough walls. Enemy AIs take turns sending siege waves and launch regular all-out attacks, while your units and defenses are far sturdier. Every value is set in the lobby, next to all the standard game options."
+3,,,,,,Fortress Mode
+4,,,,,,"Co-op against the AI behind tough walls. Enemy AIs take turns sending siege waves and launch regular all-out attacks, while your units and defenses are far sturdier. Every value is set in the lobby, next to all the standard game options."
+5,,,,,,Fortress Settings
+6,,,,,,x1
+7,,,,,,x1.5
+8,,,,,,x2
+9,,,,,,x3
+10,,,,,,x4
+11,,,,,,x5
+12,,,,,,Human Unit Health
+13,,,,,,Health multiplier for human players' military units.
+14,,,,,,x1
+15,,,,,,x2
+16,,,,,,x3
+17,,,,,,x4
+18,,,,,,x5
+19,,,,,,x8
+20,,,,,,x10
+21,,,,,,Human Defense Health
+22,,,,,,"Health multiplier for human players' walls, gates, towers, outposts and keeps."
+23,,,,,,Nobody
+24,,,,,,AI only
+25,,,,,,Humans only
+26,,,,,,Everyone
+27,,,,,,Disable Trebuchets
+28,,,,,,Who cannot build trebuchets.
+29,,,,,,200
+30,,,,,,250
+31,,,,,,300
+32,,,,,,400
+33,,,,,,500
+34,,,,,,Human Population Cap
+35,,,,,,Maximum population for human players.
+36,,,,,,100
+37,,,,,,150
+38,,,,,,200
+39,,,,,,250
+40,,,,,,300
+41,,,,,,AI Population Cap
+42,,,,,,Maximum population for AI players.
+43,,,,,,x1
+44,,,,,,x1.25
+45,,,,,,x1.5
+46,,,,,,x2
+47,,,,,,x3
+48,,,,,,AI Unit Production Speed
+49,,,,,,Unit production speed multiplier for AI players' buildings.
+50,,,,,,x1 (standard)
+51,,,,,,×1.5
+52,,,,,,×2
+53,,,,,,×3
+54,,,,,,×5
+55,,,,,,Gold and Stone Deposits
+56,,,,,,Multiplies how much every gold and stone deposit on the map holds.
+57,,,,,,6 (standard)
+58,,,,,,10
+59,,,,,,16
+60,,,,,,20
+61,,,,,,30
+62,,,,,,Starting Villagers
+63,,,,,,Villagers every player starts with.
+64,,,,,,Off
+65,,,,,,1 min
+66,,,,,,2 min
+67,,,,,,3 min
+68,,,,,,5 min
+69,,,,,,10 min
+70,,,,,,AI All-Out Attack
+71,,,,,,"From minute 8 on, how often one enemy AI with a standing main town center sends its whole land army."
+72,,,,,,Off
+73,,,,,,5 min (test)
+74,,,,,,30 min
+75,,,,,,45 min
+76,,,,,,60 min
+77,,,,,,90 min
+78,,,,,,120 min
+79,,,,,,Survival Victory
+80,,,,,,Humans win if they are still alive after this long.
+81,,,,,,Off
+82,,,,,,50
+83,,,,,,100
+84,,,,,,150
+85,,,,,,200
+86,,,,,,Attack Wave Size
+87,,,,,,"Units in each attack wave. One AI attacks at a time, spawning near its town center."
+88,,,,,,1 min (test)
+89,,,,,,5 min
+90,,,,,,10 min
+91,,,,,,15 min
+92,,,,,,20 min
+93,,,,,,First Wave
+94,,,,,,When the first attack wave starts.
+95,,,,,,1 min
+96,,,,,,2 min
+97,,,,,,5 min
+98,,,,,,8 min
+99,,,,,,10 min
+100,,,,,,15 min
+101,,,,,,Wave Interval
+102,,,,,,Time between attack waves.
