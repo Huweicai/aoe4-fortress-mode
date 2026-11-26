@@ -19,7 +19,7 @@ local CROSSBAR_SHARE = 0.42
 -- Each neck is a land bridge across deep water. Water leaves no strip to sneak along, as forest and cliffs do at
 -- the shore, cannot be chopped open and keeps the ground flat for the camera.
 local NECK_LENGTH = 3
-local NECK_WIDTH = 4
+local NECK_WIDTH = 8
 -- One fishing spot every this many squares along each shore of the crossbar.
 local FISH_SPACING = 3
 local FOREST_CHANCE = 0.03
