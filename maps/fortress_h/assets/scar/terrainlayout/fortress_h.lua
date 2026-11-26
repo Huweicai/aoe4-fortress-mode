@@ -16,7 +16,8 @@ local METERS_PER_SQUARE = 16
 local UPRIGHT_SHARE = 0.22
 -- Height of the crossbar, as a share of the map.
 local CROSSBAR_SHARE = 0.42
--- Necks are cut through dense forest rather than mountains: flat ground keeps the camera steady.
+-- Each neck is a land bridge across deep water. Water leaves no strip to sneak along, as forest and cliffs do at
+-- the shore, cannot be chopped open and keeps the ground flat for the camera.
 local NECK_LENGTH = 3
 local NECK_WIDTH = 4
 -- One fishing spot every this many squares along each shore of the crossbar.
@@ -33,7 +34,6 @@ local plains = tt_plains
 local water = tt_ocean
 local shore = tt_ocean_shore
 local fish = tt_lake_medium_fish_single_precise
-local forest = tt_impasse_trees_plains
 local start = tt_player_start_classic_plains
 
 terrainLayoutResult = SetUpGrid(gridSize, plains, terrainLayoutResult)
@@ -104,14 +104,14 @@ for col = crossbar_first, crossbar_last do
 	end
 end
 
--- Each neck is forest across the crossbar but for a narrow gap in the middle.
+-- Each neck is water across the crossbar but for a land bridge in the middle.
 local gap_first = middle - math.floor((NECK_WIDTH - 1) / 2)
 local gap_last = gap_first + NECK_WIDTH - 1
 for _, neck in ipairs({ { left_neck_first, left_neck_last }, { right_neck_first, right_neck_last } }) do
 	for col = neck[1], neck[2] do
 		for row = crossbar_top, crossbar_bottom do
 			if row < gap_first or row > gap_last then
-				Set(row, col, forest)
+				Set(row, col, water)
 			end
 		end
 	end
