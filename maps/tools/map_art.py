@@ -73,8 +73,8 @@ def _organic(mask, cell, rng, wobble=0.9):
     grid = np.array([[rng.random() for _ in range(coarse)] for _ in range(coarse)]) * 255
     noise = np.asarray(Image.fromarray(grid.astype(np.uint8)).resize((size, size), Image.BICUBIC), float)
     noise = (noise - noise.mean()) / (noise.std() + 1e-6)
-    soft = np.asarray(mask.filter(ImageFilter.GaussianBlur(cell * 0.7)), float) / 255
-    return Image.fromarray(((soft + noise * 0.22 * wobble) > 0.5).astype(np.uint8) * 255)
+    soft = np.asarray(mask.filter(ImageFilter.GaussianBlur(cell * 0.45)), float) / 255
+    return Image.fromarray(((soft + noise * 0.1 * wobble) > 0.5).astype(np.uint8) * 255)
 
 
 def _outline(mask, width):
@@ -95,7 +95,7 @@ def _gold_layer(image, mask, colour=GOLD, alpha=255):
 
 
 def _water(image, rows, cell, rng):
-    mask = _mask(rows, "~sf", image.size[0], 0.45)
+    mask = _mask(rows, "~sf", image.size[0], 0)
     if not mask.getbbox():
         return
     mask = _organic(mask, cell, rng)

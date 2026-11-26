@@ -1,27 +1,30 @@
--- Fortress Hill: the smaller team starts together on a low plateau in the middle of the map, ringed by cliffs.
--- Each defender brings one pair of close ramps through the cliffs, so every player has two nearby gaps to hold;
+-- Fortress Hill: the smaller team starts together on a gentle hill in the middle of the map, ringed by a moat.
+-- Each defender brings one pair of close land bridges over the moat, so every player has two nearby gaps to hold;
 -- the pairs go left, right, top and bottom in turn. The other team starts around the edge of the map.
 --
 --        A        A        A
---      ######================######
---      #                          #
---      =   ramps   P1  P2   ramps =      = : ramp, two close together per defender
+--      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--      ~                          ~
+--      =   bridges  P1  P2 bridges=      = : land bridge, two close together per defender
 --      =                          =
---      #                          #
---      ############################
+--      ~                          ~
+--      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 --        A        A        A
 
 -- Tuning. One coarse square is METERS_PER_SQUARE wide.
 local METERS_PER_SQUARE = 16
 -- The plateau is a square this share of the map wide.
-local PLATEAU_SHARE = 0.5
-local RIM_THICKNESS = 2
-local RAMP_WIDTH = 2
--- Squares between the two ramps of a pair, centre to centre.
-local RAMP_SPACING = 5
--- Low plateau and gentle ramps: a small rise, not a mountain.
-local PLATEAU = tt_plateau_low
-local RAMP = tt_hills_low_rolling
+local PLATEAU_SHARE = 0.6
+-- The moat is deep water: mountains made the camera jump, and forest or cliffs leave a walkable strip where they
+-- meet water. A gentle hill rather than a plateau, since a plateau's cliffs would leave no shore for docks.
+local RIM_THICKNESS = 3
+local RAMP_WIDTH = 4
+-- Squares between the two bridges of a pair, centre to centre.
+local RAMP_SPACING = 7
+local PLATEAU = tt_hills_gentle_rolling
+local RAMP = tt_plains
+-- One fishing spot every this many squares around the moat.
+local FISH_SPACING = 3
 local FOREST_CHANCE = 0.03
 local HILL_CHANCE = 0.05
 
@@ -30,7 +33,9 @@ gridHeight, gridWidth, gridSize = SetCustomCoarseGrid(METERS_PER_SQUARE)
 playerStarts = worldPlayerCount
 
 local plains = tt_plains
-local rock = tt_impasse_mountains
+local rock = tt_ocean
+local shore = tt_ocean_shore
+local fish = tt_lake_medium_fish_single_precise
 local start = tt_player_start_classic_plains
 
 terrainLayoutResult = SetUpGrid(gridSize, plains, terrainLayoutResult)
@@ -78,7 +83,19 @@ for row = top, bottom do
 	end
 end
 
--- One pair of ramps per defender, on the sides in turn. A side that gets a second pair shifts both apart.
+-- A shore on the inner edge of the moat and fish around its middle; the bridges are cut through both afterwards.
+for row = top, bottom do
+	for col = left, right do
+		local depth = math.min(row - top, bottom - row, col - left, right - col)
+		if depth == RIM_THICKNESS - 1 then
+			Set(row, col, shore)
+		elseif depth == math.floor(RIM_THICKNESS / 2) and (row + col) % FISH_SPACING == 0 then
+			Set(row, col, fish)
+		end
+	end
+end
+
+-- One pair of bridges per defender, on the sides in turn. A side that gets a second pair shifts both apart.
 local sides = { "left", "right", "top", "bottom" }
 -- Rows grow downwards, so top is a negative sine.
 local SIDE_ANGLES = { left = math.pi, right = 0, top = -math.pi / 2, bottom = math.pi / 2 }
@@ -154,8 +171,10 @@ local edge = math.max(2, math.floor(gridSize * 0.08))
 local reach = middle - edge
 for index, player in ipairs(attackers) do
 	local angle = math.pi / 4 + 2 * math.pi * (index - 1) / math.max(1, #attackers)
-	local row = middle + Round(math.sin(angle) * reach, 0)
-	local col = middle + Round(math.cos(angle) * reach, 0)
+	-- On a square ring rather than a circle, so diagonal starts go into the corners, away from the moat.
+	local stretch = reach / math.max(math.abs(math.sin(angle)), math.abs(math.cos(angle)))
+	local row = middle + Round(math.sin(angle) * stretch, 0)
+	local col = middle + Round(math.cos(angle) * stretch, 0)
 	PlaceStart(player, math.max(2, math.min(gridSize - 1, row)), math.max(2, math.min(gridSize - 1, col)))
 end
 

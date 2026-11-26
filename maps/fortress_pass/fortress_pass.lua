@@ -3,17 +3,21 @@
 --
 --   north edge
 --   +----------+---+----------+
---   |  basin 1 | r |  basin 2 |   r: ridge between basins, with a narrow path so neighbours can help each other
+--   |  basin 1 | r |  basin 2 |   r: channel between basins, with a land bridge so neighbours can help each other
 --   |   (P1)   | = |   (P2)   |
---   +====  ====+===+====  ====+   mountain wall; each basin has one narrow gap
+--   +~~~~  ~~~~+~~~+~~~~  ~~~~+   moat of deep water; each basin has one land bridge out
 --   |      open plain         |
 --   |   A1    A2    A3   A4   |   attackers spread along the south
 --   +-------------------------+
 
--- Tuning. One coarse square is METERS_PER_SQUARE wide, so a gap of GAP_SQUARES is about 2 * 16 = 32 m.
+-- Tuning. One coarse square is METERS_PER_SQUARE wide, so a gap of GAP_SQUARES is about 8 * 16 = 128 m.
+-- The basins are closed off by deep water rather than mountains: mountains made the camera jump, and forest or
+-- cliffs leave a walkable strip where they meet water. Water cannot be chopped open either.
 local METERS_PER_SQUARE = 16
-local GAP_SQUARES = 2
-local RIDGE_PATH_SQUARES = 1
+local GAP_SQUARES = 8
+local RIDGE_PATH_SQUARES = 2
+-- One fishing spot every this many squares along the moat.
+local FISH_SPACING = 3
 local WALL_THICKNESS = 3
 local RIDGE_THICKNESS = 3
 -- Share of the map height taken by the basins.
@@ -28,7 +32,9 @@ gridHeight, gridWidth, gridSize = SetCustomCoarseGrid(METERS_PER_SQUARE)
 playerStarts = worldPlayerCount
 
 local plains = tt_plains
-local wall = tt_impasse_mountains
+local wall = tt_ocean
+local shore = tt_ocean_shore
+local fish = tt_lake_medium_fish_single_precise
 local start = tt_player_start_classic_plains
 
 terrainLayoutResult = SetUpGrid(gridSize, plains, terrainLayoutResult)
@@ -94,7 +100,25 @@ for _, basin in ipairs(basins) do
 	end
 end
 
--- Ridges between basins, each with a narrow path halfway down.
+-- A shore on the basin side of the moat, and fish down its middle, both kept off the bridges.
+local on_bridge = { }
+for _, basin in ipairs(basins) do
+	local gap_first = basin.centre - math.floor((GAP_SQUARES - 1) / 2)
+	for col = gap_first - 1, gap_first + GAP_SQUARES do
+		on_bridge[col] = true
+	end
+end
+local moat_middle = math.floor((wall_first + wall_last) / 2)
+for col = 1, gridSize do
+	if not on_bridge[col] then
+		Set(wall_first, col, shore)
+		if col % FISH_SPACING == 1 then
+			Set(moat_middle, col, fish)
+		end
+	end
+end
+
+-- Channels between basins, each with a land bridge halfway down.
 local path_row = math.floor(basin_rows / 2)
 for index = 1, basin_count - 1 do
 	local first = basins[index].last + 1
