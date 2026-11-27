@@ -45,7 +45,7 @@ MAPS = {
         "tagline": "两边各守一岸，中间只有一座窄长的陆桥",
         "tagline_en": "One shore each, and a single long, narrow land bridge between",
         "points": [
-            ("唯一通道", "One way across", "8 格宽的陆桥，两侧全是深水"),
+            ("唯一通道", "One way across", "32 米宽的陆桥，战舰能从侧面轰到整座桥"),
             ("隔岸对峙", "Face to face", "两队分在左右两岸"),
             ("湖里有鱼", "Fishing", "两岸都有浅滩和鱼群"),
         ],

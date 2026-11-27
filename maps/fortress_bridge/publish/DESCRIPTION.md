@@ -11,7 +11,7 @@
 | | |
 |---|---|
 | 阵营 | 第一位玩家所在的队伍在左岸，其他队伍在右岸 |
-| 通道 | 中间一座陆桥，约 128 米宽，两侧是深水，没有别的路 |
+| 通道 | 中间一座陆桥，约 32 米宽，两侧是深水，没有别的路；停在一侧的战舰能打到整座桥 |
 | 水域 | 上下都是深湖，走不过去；两岸都有浅滩，可以捕鱼、造码头 |
 | 资源 | 标准开局资源，两岸后方各多一座金矿和石矿 |
 
@@ -33,7 +33,7 @@
 | | |
 |---|---|
 | Sides | The first player's team takes the left shore; every other team the right |
-| Way across | One land bridge in the middle, about 128 m wide, with deep water on both sides and no other way over |
+| Way across | One land bridge in the middle, about 32 m wide, with deep water on both sides and no other way over; a warship on one side covers all of it |
 | Water | Deep lakes above and below: no wading, but both shores have shallows for fishing and docks |
 | Resources | The standard start, plus an extra gold and stone deposit at the back of each shore |
 

@@ -44,7 +44,7 @@ TEXTS = {
         "两队各守一岸，中间只有一座窄长的陆桥，两侧全是深水。为《堡垒模式》设计，也可当普通团队图。 / Two teams on opposite shores, joined only by one long, narrow land bridge with deep water on both sides. Made for Fortress Mode; works as any team game.",
         "1 号位所在的队伍在左岸，其他队伍在右岸 / The first player's team takes the left shore, everyone else the right",
         "真人放同一队并占 1 号位，AI 放另一队 / Put humans on one team, with you in slot 1, and AIs on the other",
-        "两边各守一岸，中间只有一座约 128 米宽的陆桥，两侧是深水。两岸都有浅滩和鱼群。 / One shore each and a single land bridge about 128 m wide between, with deep water on both sides. Both shores have shallows and fish.",
+        "两边各守一岸，中间只有一座约 32 米宽的陆桥，两侧是深水，停在一侧的战舰能打到整座桥。两岸都有浅滩和鱼群。 / One shore each and a single land bridge about 32 m wide between, with deep water on both sides; a warship on one side covers all of it. Both shores have shallows and fish.",
     ),
     "fortress_hill": (
         "大家一起守护城河围着的中央小山，每位守方一对相邻的陆桥。为《堡垒模式》设计，也可当普通团队图。 / Hold the moated hill in the middle together, with a pair of close land bridges for each defender. Made for Fortress Mode; works as any team game.",
