@@ -38,6 +38,18 @@ MAPS = {
             ("资源充足", "Rich crossbar", "两端各有额外的金矿和石矿"),
         ],
     },
+    "fortress_bridge": {
+        "seed": 3,
+        "title": "长桥要塞",
+        "title_en": "FORTRESS  BRIDGE",
+        "tagline": "两边各守一岸，中间只有一座窄长的陆桥",
+        "tagline_en": "One shore each, and a single long, narrow land bridge between",
+        "points": [
+            ("唯一通道", "One way across", "8 格宽的陆桥，两侧全是深水"),
+            ("隔岸对峙", "Face to face", "两队分在左右两岸"),
+            ("湖里有鱼", "Fishing", "两岸都有浅滩和鱼群"),
+        ],
+    },
     "fortress_hill": {
         "seed": 5,
         "title": "山顶要塞",

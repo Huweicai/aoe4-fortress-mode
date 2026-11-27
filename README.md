@@ -5,6 +5,7 @@
 | `fortress_mode/` | Fortress Mode game mode: co-op defence against AI siege waves |
 | `maps/fortress_pass/` | Fortress Pass generated map: walled basins with narrow gaps |
 | `maps/fortress_hill/` | Fortress Hill generated map: defenders together on a low plateau, two close ramps each |
+| `maps/fortress_bridge/` | Fortress Bridge generated map: two teams on opposite shores, joined by one long, narrow land bridge |
 | `maps/fortress_h/` | Fortress H generated map: defenders back to back on the crossbar of an H, attackers on both uprights |
 | `tools/sga.py` | Lists and extracts AoE4 SGA v10 archives, e.g. the official map scripts in `Data.sga` |
 
