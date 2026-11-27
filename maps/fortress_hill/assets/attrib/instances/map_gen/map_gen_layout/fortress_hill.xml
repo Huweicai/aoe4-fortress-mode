@@ -35,7 +35,7 @@
 				<locstring name="note" value="5" mod="1f27761efdd24b46878c58a99ef69c1c" List.ItemID="-1139061908" />
 			</list>
 			<locstring name="display_description_long" value="6" mod="1f27761efdd24b46878c58a99ef69c1c" />
-			<file name="image_icon" value="map_gen_layout\default_mod_icon" />
+			<file name="image_icon" value="map_gen_layout\fortress_hill_icon" />
 			<list name="characteristics">
 			</list>
 			<list name="playstyle_tags">

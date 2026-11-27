@@ -153,7 +153,7 @@
 				<locstring name="note" value="5" mod="5d06e525054d4cefbdbe800801135316" />
 			</list>
 			<locstring name="display_description_long" value="6" mod="5d06e525054d4cefbdbe800801135316" />
-			<file name="image_icon" value="map_gen_layout\default_mod_icon" />
+			<file name="image_icon" value="map_gen_layout\fortress_h_icon" />
 			<list name="characteristics">
 			</list>
 		</group>

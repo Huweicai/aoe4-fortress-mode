@@ -94,6 +94,8 @@ def write_texts(project, name, guid):
     # The template's own notes and description, wherever the editor put other attributes on the tag.
     for tag, old, key in (("note", "11166241", 4), ("note", "11166242", 5), ("display_description_long", "11183792", 6)):
         text = re.sub(rf'<locstring name="{tag}" value="{old}"', f'<locstring name="{tag}" value="{key}" mod="{guid}"', text)
+    # The lobby icon: our own instead of the template's wrench. The editor burns ui\images into game textures.
+    text = text.replace('value="map_gen_layout\\default_mod_icon"', f'value="map_gen_layout\\{name}_icon"')
     with open(layout, "w", encoding="utf-8", newline="") as target:
         target.write(text)
 
@@ -102,7 +104,10 @@ def push(project, name):
     pairs = [(f"assets/scar/terrainlayout/{name}.lua", f"assets/scar/terrainlayout/"),
              (f"assets/locdb/{name}_en.csv", "assets/locdb/"),
              (f"assets/attrib/instances/map_gen/map_gen_layout/{name}.xml", "assets/attrib/instances/map_gen/map_gen_layout/"),
-             ("assets/mod.png", "assets/")]
+             ("assets/mod.png", "assets/"),
+             (f"assets/ui/images/map_gen_layout/{name}_icon.png", "assets/ui/images/map_gen_layout/")]
+    subprocess.run(["ssh", *HOST, REMOTE, f"mkdir Documents\\{name}\\assets\\ui\\images\\map_gen_layout"],
+                   capture_output=True)
     for local, remote_dir in pairs:
         scp(str(project / local), f"{REMOTE}:Documents/{name}/{remote_dir}")
 
@@ -113,6 +118,9 @@ def main():
     fetch_project(name, project)
     write_texts(project, name, mod_guid(project, name))
     (project / "assets" / "mod.png").write_bytes((project / "publish" / "mod.png").read_bytes())
+    icon = project / "assets" / "ui" / "images" / "map_gen_layout" / f"{name}_icon.png"
+    icon.parent.mkdir(parents=True, exist_ok=True)
+    icon.write_bytes((project / "publish" / "icon.png").read_bytes())
     push(project, name)
     print(f"{name}: installed")
 
