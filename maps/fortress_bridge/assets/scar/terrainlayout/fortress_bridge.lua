@@ -9,12 +9,13 @@
 --   |  A3  |~~~~ water ~~~~~|  B3  |
 --   +------+~~~~~~~~~~~~~~~~+------+
 
--- Tuning. One coarse square is METERS_PER_SQUARE wide, so the bridge is about 2 * 16 = 32 m wide:
--- narrow enough for a warship on one side to cover all of it, the baochuan's cannons reaching 36 m.
+-- Tuning. One coarse square is METERS_PER_SQUARE wide, so the bridge is about 3 * 16 = 48 m wide: a warship on one
+-- side, the baochuan's cannons reaching 36 m, covers most of it. Two squares came out flooded once the engine
+-- smoothed the shores.
 local METERS_PER_SQUARE = 16
 -- Width of each upright, as a share of the map; the bridge spans what is left.
 local UPRIGHT_SHARE = 0.24
-local BRIDGE_WIDTH = 2
+local BRIDGE_WIDTH = 3
 -- One fishing spot every this many squares down each shore.
 local FISH_SPACING = 3
 
