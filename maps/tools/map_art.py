@@ -151,7 +151,7 @@ def _mountains(image, rows, cell, rng):
 
 
 def _plateau(image, rows, cell):
-    mask = _mask(rows, ",GS0123456789", image.size[0], 0.2)
+    mask = _mask(rows, ",GSH0123456789", image.size[0], 0.2)
     rim = _mask(rows, "#h", image.size[0], 0.0)
     plateau_area = ImageChops.multiply(mask, ImageChops.invert(rim))
     if not _mask(rows, ",", image.size[0], 0).getbbox():
@@ -202,6 +202,22 @@ def _gold(draw, x, y, cell):
         draw.polygon(poly, fill=(236, 186, 60), outline=(120, 84, 20))
 
 
+def _shrine(draw, x, y, cell):
+    """A sacred site: a stepped gold platform with a pole and pennant, as on the official icons."""
+    line = max(2, int(cell * 0.07))
+    w = cell * 1.1
+    for k, width in enumerate((1.0, 0.75, 0.5)):
+        top = y + cell * 0.3 - k * cell * 0.18
+        draw.rectangle([x - w * width / 2, top - cell * 0.16, x + w * width / 2, top], outline=GOLD, width=line)
+    pole_top = y - cell * 1.1
+    draw.line([(x, y - cell * 0.24), (x, pole_top)], fill=GOLD, width=line)
+    draw.polygon([(x, pole_top), (x + cell * 0.45, pole_top + cell * 0.14), (x, pole_top + cell * 0.28)], fill=GOLD)
+    for angle in range(0, 360, 45):
+        dx, dy = math.cos(math.radians(angle)), math.sin(math.radians(angle))
+        draw.line([(x + dx * cell * 0.25, pole_top - cell * 0.1 + dy * cell * 0.25),
+                   (x + dx * cell * 0.42, pole_top - cell * 0.1 + dy * cell * 0.42)], fill=GOLD, width=max(1, line // 2))
+
+
 def _stone(draw, x, y, cell):
     r = cell * 0.42
     blob = [(x - r, y + r * 0.4), (x - r * 0.7, y - r * 0.3), (x - r * 0.1, y - r * 0.7), (x + r * 0.6, y - r * 0.45),
@@ -243,6 +259,8 @@ def draw_map(rows, size, defenders, seed=7):
         _gold(draw, (c + 0.5) * cell, (r + 0.6) * cell, cell * 1.6)
     for r, c in _cells(rows, "S"):
         _stone(draw, (c + 0.5) * cell, (r + 0.5) * cell, cell * 1.6)
+    for r, c in _cells(rows, "H"):
+        _shrine(draw, (c + 0.5) * cell, (r + 0.5) * cell, cell * 1.6)
     for r, c in _cells(rows, "0123456789"):
         colour = DEFENDER if rows[r][c] in defenders else ATTACKER
         _keep(draw, (c + 0.5) * cell, (r + 0.5) * cell, cell * 1.7, colour)

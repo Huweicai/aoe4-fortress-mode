@@ -94,3 +94,6 @@ Set(2, 2, tt_gold_large)
 Set(gridSize - 1, 2, tt_stone_large)
 Set(2, gridSize - 1, tt_gold_large)
 Set(gridSize - 1, gridSize - 1, tt_stone_large)
+
+-- A sacred site in the middle of the bridge, for both sides to fight over.
+Set(middle, middle, tt_holy_site)

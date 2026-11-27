@@ -15,6 +15,7 @@
 | 通道 | 左右各一个窄口，很窄，几段城墙就能封住 |
 | 水域 | 横梁上下是深湖，走不过去；可以捕鱼，也能造船 |
 | 资源 | 标准开局资源，横梁两端各多一座金矿和石矿 |
+| 圣地 | 横梁正中间一座，在守方身后 |
 
 ### 怎么玩
 
@@ -38,6 +39,7 @@
 | Ways in | One narrow neck at each end, narrow enough to close with a few wall sections |
 | Water | Deep lakes above and below the crossbar: no wading, but fishing and ships work |
 | Resources | The standard start, plus an extra gold and stone deposit at each end of the crossbar |
+| Sacred site | One in the middle of the crossbar, behind the defenders |
 
 ### How to play
 

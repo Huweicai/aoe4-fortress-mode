@@ -16,6 +16,7 @@
 | 地势 | 平缓的小山，没有悬崖，镜头不会跳 |
 | 水域 | 护城河是深水，走不过去；内侧有浅滩，可以捕鱼、造码头 |
 | 资源 | 标准开局资源，高地四角各多一座金矿或石矿 |
+| 圣地 | 小山正中间一座，在守方身后 |
 
 ### 怎么玩
 
@@ -40,6 +41,7 @@
 | Height | A gentle hill with no cliffs, so the camera stays steady |
 | Water | The moat is deep: no wading, but the inner side has a shore for fishing and docks |
 | Resources | The standard start, plus an extra gold or stone deposit in each corner of the plateau |
+| Sacred site | One in the middle of the hill, behind the defenders |
 
 ### How to play
 

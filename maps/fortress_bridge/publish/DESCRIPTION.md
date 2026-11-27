@@ -14,6 +14,7 @@
 | 通道 | 中间一座陆桥，约 48 米宽，两侧是深水，没有别的路；停在一侧的战舰能打到大半座桥 |
 | 水域 | 上下都是深湖，走不过去；两岸都有浅滩，可以捕鱼、造码头 |
 | 资源 | 标准开局资源，两岸后方各多一座金矿和石矿 |
+| 圣地 | 长桥正中间一座，双方必争 |
 
 ### 怎么玩
 
@@ -36,6 +37,7 @@
 | Way across | One land bridge in the middle, about 48 m wide, with deep water on both sides and no other way over; a warship on one side covers most of it |
 | Water | Deep lakes above and below: no wading, but both shores have shallows for fishing and docks |
 | Resources | The standard start, plus an extra gold and stone deposit at the back of each shore |
+| Sacred site | One in the middle of the bridge, for both sides to fight over |
 
 ### How to play
 

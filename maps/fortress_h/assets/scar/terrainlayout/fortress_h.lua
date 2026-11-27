@@ -164,3 +164,25 @@ Set(crossbar_top + 2, crossbar_first + 1, tt_gold_large)
 Set(crossbar_bottom - 2, crossbar_first + 1, tt_stone_large)
 Set(crossbar_top + 2, crossbar_last - 1, tt_gold_large)
 Set(crossbar_bottom - 2, crossbar_last - 1, tt_stone_large)
+
+-- A sacred site near the middle of the map, at least SACRED_CLEARANCE squares from every start.
+local SACRED_CLEARANCE = 4
+local function NearStart(row, col)
+	for r = row - SACRED_CLEARANCE + 1, row + SACRED_CLEARANCE - 1 do
+		for c = col - SACRED_CLEARANCE + 1, col + SACRED_CLEARANCE - 1 do
+			if r >= 1 and r <= gridSize and c >= 1 and c <= gridSize and terrainLayoutResult[r][c].playerIndex ~= nil then
+				return true
+			end
+		end
+	end
+	return false
+end
+-- With no such spot, as with four defenders round the middle, the centre itself is still a few squares clear.
+local sacred_row = middle
+for _, offset in ipairs({ 0, -4, 4, -6, 6 }) do
+	if not NearStart(middle + offset, middle) then
+		sacred_row = middle + offset
+		break
+	end
+end
+Set(sacred_row, middle, tt_holy_site)
