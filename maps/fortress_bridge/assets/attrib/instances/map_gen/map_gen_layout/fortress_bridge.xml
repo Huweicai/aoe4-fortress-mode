@@ -37,8 +37,12 @@
 			<locstring name="display_description_long" value="6" mod="60e4554825e64bcb93361b4f188f0bba" />
 			<file name="image_icon" value="map_gen_layout\fortress_bridge_icon" />
 			<list name="characteristics">
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\choke_point" List.ItemID="720751834" />
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\lanes" List.ItemID="-1541178424" />
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\limited_naval" List.ItemID="568861416" />
 			</list>
 			<list name="playstyle_tags">
+				<instance_reference name="playstyle_tags" value="map_gen\map_gen_ui_characteristic\casual" List.ItemID="-1529536244" />
 			</list>
 		</group>
 		<enum_table name="balancing_resource_score_maps">

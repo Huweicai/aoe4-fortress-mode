@@ -37,8 +37,13 @@
 			<locstring name="display_description_long" value="6" mod="1f27761efdd24b46878c58a99ef69c1c" />
 			<file name="image_icon" value="map_gen_layout\fortress_hill_icon" />
 			<list name="characteristics">
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\choke_point" List.ItemID="1118277663" />
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\limited_naval" List.ItemID="-172460946" />
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\more_gold" List.ItemID="-2109484885" />
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\more_stone" List.ItemID="-1005718299" />
 			</list>
 			<list name="playstyle_tags">
+				<instance_reference name="playstyle_tags" value="map_gen\map_gen_ui_characteristic\casual" List.ItemID="131882045" />
 			</list>
 		</group>
 		<enum_table name="balancing_resource_score_maps">

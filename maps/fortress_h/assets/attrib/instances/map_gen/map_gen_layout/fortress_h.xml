@@ -155,6 +155,10 @@
 			<locstring name="display_description_long" value="6" mod="5d06e525054d4cefbdbe800801135316" />
 			<file name="image_icon" value="map_gen_layout\fortress_h_icon" />
 			<list name="characteristics">
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\choke_point" List.ItemID="1109423137" />
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\limited_naval" List.ItemID="320489973" />
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\more_gold" List.ItemID="1860043322" />
+				<instance_reference name="characteristic" value="map_gen\map_gen_ui_characteristic\more_stone" List.ItemID="1139395301" />
 			</list>
 		</group>
 		<list name="selectable_biomes">

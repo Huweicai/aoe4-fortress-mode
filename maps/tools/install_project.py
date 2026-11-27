@@ -10,6 +10,7 @@ import io
 import re
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,6 +24,14 @@ TITLES = {
     "fortress_hill": "山顶要塞 · Fortress Hill",
     "fortress_pass": "隘口要塞 · Fortress Pass",
 }
+# Tags under the map in the lobby, from map_gen\map_gen_ui_characteristic, as the official maps use them.
+CHARACTERISTICS = {
+    "fortress_h": ["choke_point", "limited_naval", "more_gold", "more_stone"],
+    "fortress_bridge": ["choke_point", "lanes", "limited_naval"],
+    "fortress_hill": ["choke_point", "limited_naval", "more_gold", "more_stone"],
+    "fortress_pass": ["choke_point", "limited_naval", "more_gold", "more_stone"],
+}
+PLAYSTYLE_TAGS = ["casual"]
 # Mod description, two lobby notes and the lobby description, each in Chinese then English.
 TEXTS = {
     "fortress_h": (
@@ -94,6 +103,17 @@ def write_texts(project, name, guid):
     # The template's own notes and description, wherever the editor put other attributes on the tag.
     for tag, old, key in (("note", "11166241", 4), ("note", "11166242", 5), ("display_description_long", "11183792", 6)):
         text = re.sub(rf'<locstring name="{tag}" value="{old}"', f'<locstring name="{tag}" value="{key}" mod="{guid}"', text)
+    newline = "\r\n" if "\r\n" in text else "\n"
+
+    def fill(list_name, item_name, tags):
+        items = "".join(
+            f'\t\t\t\t<instance_reference name="{item_name}" value="map_gen\\map_gen_ui_characteristic\\{tag}" '
+            f'List.ItemID="{zlib.crc32(f"{name}/{list_name}/{tag}".encode()) - 2**31}" />{newline}' for tag in tags)
+        return re.sub(rf'(<list name="{list_name}">){re.escape(newline)}.*?(\t\t\t</list>)',
+                      lambda m: m.group(1) + newline + items + m.group(2), text, count=1, flags=re.S)
+
+    text = fill("characteristics", "characteristic", CHARACTERISTICS[name])
+    text = fill("playstyle_tags", "playstyle_tags", PLAYSTYLE_TAGS)
     # The lobby icon: our own instead of the template's wrench. The editor burns ui\images into game textures.
     text = text.replace('value="map_gen_layout\\default_mod_icon"', f'value="map_gen_layout\\{name}_icon"')
     with open(layout, "w", encoding="utf-8", newline="") as target:
