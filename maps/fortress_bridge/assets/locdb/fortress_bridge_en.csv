@@ -1,0 +1,7 @@
+﻿ID,Pipeline,PipelineStage,Notes,TranslationNotes,Tags,Text
+1,,,Mod name.,,,长桥要塞 · Fortress Bridge
+2,,,Mod description.,,,"两队各守一岸，中间只有一座窄长的陆桥，两侧全是深水。为《堡垒模式》设计，也可当普通团队图。 / Two teams on opposite shores, joined only by one long, narrow land bridge with deep water on both sides. Made for Fortress Mode; works as any team game."
+3,,,Map name.,,,长桥要塞 · Fortress Bridge
+4,,,Lobby note.,,,"1 号位所在的队伍在左岸，其他队伍在右岸 / The first player's team takes the left shore, everyone else the right"
+5,,,Lobby note.,,,"真人放同一队并占 1 号位，AI 放另一队 / Put humans on one team, with you in slot 1, and AIs on the other"
+6,,,Lobby description.,,,"两边各守一岸，中间只有一座约 128 米宽的陆桥，两侧是深水。两岸都有浅滩和鱼群。 / One shore each and a single land bridge about 128 m wide between, with deep water on both sides. Both shores have shallows and fish."
