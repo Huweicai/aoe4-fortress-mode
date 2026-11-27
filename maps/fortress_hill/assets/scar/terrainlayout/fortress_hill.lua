@@ -185,7 +185,8 @@ Set(bottom - near, right - near, tt_gold_large)
 Set(top + near, right - near, tt_stone_large)
 Set(bottom - near, left + near, tt_stone_large)
 
--- A sacred site near the middle of the map, at least SACRED_CLEARANCE squares from every start.
+-- Three sacred sites, as the official maps have: one in the middle and a pair on either side.
+-- Each keeps SACRED_CLEARANCE squares from every start, trying a few squares round the wanted spot.
 local SACRED_CLEARANCE = 4
 local function NearStart(row, col)
 	for r = row - SACRED_CLEARANCE + 1, row + SACRED_CLEARANCE - 1 do
@@ -197,12 +198,22 @@ local function NearStart(row, col)
 	end
 	return false
 end
--- With no such spot, as with four defenders round the middle, the centre itself is still a few squares clear.
-local sacred_row = middle
-for _, offset in ipairs({ 0, -4, 4, -6, 6 }) do
-	if not NearStart(middle + offset, middle) then
-		sacred_row = middle + offset
-		break
+local function PlaceSacredSite(row, col, land)
+	for _, offset in ipairs({ { 0, 0 }, { -4, 0 }, { 4, 0 }, { 0, -3 }, { 0, 3 }, { -6, 0 }, { 6, 0 } }) do
+		local r, c = row + offset[1], col + offset[2]
+		if r >= 2 and r < gridSize and c >= 2 and c < gridSize and land(r, c) and not NearStart(r, c) then
+			Set(r, c, tt_holy_site)
+			return
+		end
 	end
+	-- Nowhere clear, as with four defenders round the middle: the spot itself is still a few squares from them.
+	Set(row, col, tt_holy_site)
 end
-Set(sacred_row, middle, tt_holy_site)
+local function OnLand(row, col)
+	local terrain = terrainLayoutResult[row][col].terrainType
+	return terrain ~= rock and terrain ~= shore and terrain ~= fish
+end
+PlaceSacredSite(middle, middle, OnLand)
+-- Outside the moat, left and right, where the defenders have to go out for them.
+PlaceSacredSite(middle, math.max(2, left - 4), OnLand)
+PlaceSacredSite(middle, math.min(gridSize - 1, right + 4), OnLand)

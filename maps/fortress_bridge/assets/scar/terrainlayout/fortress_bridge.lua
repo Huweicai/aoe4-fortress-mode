@@ -95,5 +95,35 @@ Set(gridSize - 1, 2, tt_stone_large)
 Set(2, gridSize - 1, tt_gold_large)
 Set(gridSize - 1, gridSize - 1, tt_stone_large)
 
--- A sacred site in the middle of the bridge, for both sides to fight over.
-Set(middle, middle, tt_holy_site)
+-- Three sacred sites, as the official maps have: one in the middle and a pair on either side.
+-- Each keeps SACRED_CLEARANCE squares from every start, trying a few squares round the wanted spot.
+local SACRED_CLEARANCE = 4
+local function NearStart(row, col)
+	for r = row - SACRED_CLEARANCE + 1, row + SACRED_CLEARANCE - 1 do
+		for c = col - SACRED_CLEARANCE + 1, col + SACRED_CLEARANCE - 1 do
+			if r >= 1 and r <= gridSize and c >= 1 and c <= gridSize and terrainLayoutResult[r][c].playerIndex ~= nil then
+				return true
+			end
+		end
+	end
+	return false
+end
+local function PlaceSacredSite(row, col, land)
+	for _, offset in ipairs({ { 0, 0 }, { -4, 0 }, { 4, 0 }, { 0, -3 }, { 0, 3 }, { -6, 0 }, { 6, 0 } }) do
+		local r, c = row + offset[1], col + offset[2]
+		if r >= 2 and r < gridSize and c >= 2 and c < gridSize and land(r, c) and not NearStart(r, c) then
+			Set(r, c, tt_holy_site)
+			return
+		end
+	end
+	-- Nowhere clear, as with four defenders round the middle: the spot itself is still a few squares from them.
+	Set(row, col, tt_holy_site)
+end
+local function OnLand(row, col)
+	local terrain = terrainLayoutResult[row][col].terrainType
+	return terrain ~= water and terrain ~= shore and terrain ~= fish
+end
+PlaceSacredSite(middle, middle, OnLand)
+-- One on each shore, by its end of the bridge.
+PlaceSacredSite(middle, math.max(2, upright - 2), OnLand)
+PlaceSacredSite(middle, math.min(gridSize - 1, gridSize - upright + 3), OnLand)
