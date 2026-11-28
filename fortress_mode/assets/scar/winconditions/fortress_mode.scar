@@ -820,28 +820,92 @@ local function ClosestInGroups(groups, position)
 	return closest
 end
 
--- A ram sent at a building behind a wall stops at the wall and idles, since an attack order does not break through.
--- So idle siege is sent at whatever is closest to it, which is usually the wall or gate in its way.
--- Busy siege is left alone: repeated orders would only make it path again.
-local function OrderIdleSiege(force)
-	local idle = { }
+-- Siege is checked squad by squad, since one stuck ram should not hold up the rest. A squad gets a new target when it
+-- is idle, when its target is gone, or when it is stuck: neither moving nor hurting its target for SIEGE_STUCK_TIME.
+-- That covers a ram stopped at a wall it was not told to break, and one sent at a building it cannot reach, which
+-- stays busy trying and never goes idle. A target it got stuck on is avoided for a while, so it is not sent back.
+-- A stuck squad first follows the infantry's target: the infantry reached it, so a path to it exists, whereas the
+-- building nearest in a straight line may sit behind a forest or across water.
+-- This runs within the order passes, with no rule of its own; only stuck squads look through every building.
+local SIEGE_STUCK_TIME = 25
+local SIEGE_MOVE_EPSILON = 3
+local SIEGE_AVOID_TIME = 120
+
+local function ClosestAllowed(groups, position, avoid, now)
+	local closest = ClosestInGroups(groups, position)
+	if closest == nil or (avoid[Entity_GetID(closest)] or 0) <= now then
+		return closest
+	end
+	-- The nearest one is avoided: look through them all, which only stuck squads need.
+	local best, best_distance = nil, nil
+	for _, group in ipairs(groups) do
+		EGroup_ForEach(group, function(_, _, entity)
+			if (avoid[Entity_GetID(entity)] or 0) <= now then
+				local distance = World_DistancePointToPoint(position, Entity_GetPosition(entity))
+				if best == nil or distance < best_distance then
+					best, best_distance = entity, distance
+				end
+			end
+		end)
+	end
+	return best
+end
+
+local function SiegeNeedsOrder(track, squad, now)
+	local position = Squad_GetPosition(squad)
+	local target_alive = track.target_id ~= nil and Entity_IsValid(track.target_id)
+	local health = target_alive and Entity_GetHealth(Entity_FromID(track.target_id)) or nil
+	local moved = track.position == nil or World_DistancePointToPoint(position, track.position) >= SIEGE_MOVE_EPSILON
+	local hurting = health ~= nil and track.health ~= nil and health < track.health
+	if moved or hurting or track.since == nil then
+		track.since = now
+	end
+	track.position, track.health = position, health
+	local stuck = target_alive and now - track.since >= SIEGE_STUCK_TIME
+	if stuck then
+		track.avoid[track.target_id] = now + SIEGE_AVOID_TIME
+	end
+	return stuck or not target_alive or Squad_IsIdle(squad), stuck
+end
+
+local function OrderSiegeSquads(force)
+	local now = World_GetGameTime()
+	local tracks = { }
+	local waiting = { }
+	local stuck_count = 0
 	SGroup_ForEach(force.siege, function(_, _, squad)
-		if Squad_IsIdle(squad) then
-			table.insert(idle, squad)
+		local id = Squad_GetID(squad)
+		local track = (force.siege_tracks or { })[id] or { avoid = { }, target_id = force.building_id }
+		tracks[id] = track
+		local needs, stuck = SiegeNeedsOrder(track, squad, now)
+		if needs then
+			table.insert(waiting, { squad = squad, track = track, stuck = stuck })
+			stuck_count = stuck_count + (stuck and 1 or 0)
 		end
 	end)
-	if #idle == 0 then
+	-- Squads that died drop out here.
+	force.siege_tracks = tracks
+	if #waiting == 0 then
 		return
 	end
 	local players = IsLiveEnemyHuman(force.attacker.id, force.target) and { force.target } or LiveEnemyHumans(force.attacker.id)
 	local groups = SiegeTargetGroups(players)
 	local by_target = { }
-	for _, squad in ipairs(idle) do
-		local target = ClosestInGroups(groups, Squad_GetPosition(squad))
+	local roamers = { }
+	for _, entry in ipairs(waiting) do
+		local target = nil
+		local army_target = force.building_id
+		if entry.stuck and army_target ~= nil and Entity_IsValid(army_target) and (entry.track.avoid[army_target] or 0) <= now then
+			target = Entity_FromID(army_target)
+		end
+		target = target or ClosestAllowed(groups, Squad_GetPosition(entry.squad), entry.track.avoid, now)
 		if target ~= nil then
 			local id = Entity_GetID(target)
+			entry.track.target_id, entry.track.since, entry.track.health = id, now, nil
 			by_target[id] = by_target[id] or { target = target, squads = { } }
-			table.insert(by_target[id].squads, squad)
+			table.insert(by_target[id].squads, entry.squad)
+		else
+			table.insert(roamers, entry.squad)
 		end
 	end
 	for _, group in ipairs(groups) do
@@ -857,8 +921,16 @@ local function OrderIdleSiege(force)
 		OrderSiege(siege, entry.target)
 		orders = orders + 1
 	end
+	-- Every target avoided: attack-move with the infantry instead, breaking whatever stands in the way.
+	if #roamers > 0 and force.building_id ~= nil and Entity_IsValid(force.building_id) then
+		SGroup_Clear(siege)
+		for _, squad in ipairs(roamers) do
+			SGroup_Add(siege, squad)
+		end
+		OrderArmy(siege, Entity_FromID(force.building_id))
+	end
 	SGroup_Clear(siege)
-	DebugLog(string.format("player %d -> human %d | %d idle siege sent at %d targets", force.attacker.index, force.target.index, #idle, orders))
+	DebugLog(string.format("player %d -> human %d | %d siege reordered (%d stuck) at %d targets", force.attacker.index, force.target.index, #waiting, stuck_count, orders))
 end
 
 -- The building of the last order is kept per group.
@@ -909,7 +981,7 @@ local function OrderPlayerWaves(player)
 	local all_ok = true
 	for _, force in ipairs(_wave_forces[player.index] or { }) do
 		all_ok = Guard("wave orders", OrderIfNeeded, force, force.army, OrderArmy) and all_ok
-		all_ok = Guard("wave orders", OrderIdleSiege, force) and all_ok
+		all_ok = Guard("wave orders", OrderSiegeSquads, force) and all_ok
 	end
 	if not all_ok then
 		error("wave orders failed")
