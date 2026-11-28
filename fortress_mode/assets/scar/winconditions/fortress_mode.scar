@@ -830,17 +830,22 @@ end
 local SIEGE_STUCK_TIME = 25
 local SIEGE_MOVE_EPSILON = 3
 local SIEGE_AVOID_TIME = 120
+-- Siege queued on one building crowds round it and blocks itself, so each building takes at most this many squads.
+local SIEGE_PER_TARGET = 3
 
-local function ClosestAllowed(groups, position, avoid, now)
+local function ClosestAllowed(groups, position, avoid, now, taken)
+	local function allowed(id)
+		return (avoid[id] or 0) <= now and (taken[id] or 0) < SIEGE_PER_TARGET
+	end
 	local closest = ClosestInGroups(groups, position)
-	if closest == nil or (avoid[Entity_GetID(closest)] or 0) <= now then
+	if closest == nil or allowed(Entity_GetID(closest)) then
 		return closest
 	end
-	-- The nearest one is avoided: look through them all, which only stuck squads need.
+	-- The nearest one is avoided or full: look through them all.
 	local best, best_distance = nil, nil
 	for _, group in ipairs(groups) do
 		EGroup_ForEach(group, function(_, _, entity)
-			if (avoid[Entity_GetID(entity)] or 0) <= now then
+			if allowed(Entity_GetID(entity)) then
 				local distance = World_DistancePointToPoint(position, Entity_GetPosition(entity))
 				if best == nil or distance < best_distance then
 					best, best_distance = entity, distance
@@ -890,20 +895,32 @@ local function OrderSiegeSquads(force)
 	end
 	local players = IsLiveEnemyHuman(force.attacker.id, force.target) and { force.target } or LiveEnemyHumans(force.attacker.id)
 	local groups = SiegeTargetGroups(players)
-	local by_target = { }
+	-- Squads keeping their order still hold their place at a building.
+	local taken = { }
+	local reordered = { }
+	for _, entry in ipairs(waiting) do
+		reordered[entry.track] = true
+	end
+	for _, track in pairs(tracks) do
+		if not reordered[track] and track.target_id ~= nil then
+			taken[track.target_id] = (taken[track.target_id] or 0) + 1
+		end
+	end
+	local orders = { }
 	local roamers = { }
 	for _, entry in ipairs(waiting) do
 		local target = nil
 		local army_target = force.building_id
-		if entry.stuck and army_target ~= nil and Entity_IsValid(army_target) and (entry.track.avoid[army_target] or 0) <= now then
+		if entry.stuck and army_target ~= nil and Entity_IsValid(army_target) and (entry.track.avoid[army_target] or 0) <= now
+			and (taken[army_target] or 0) < SIEGE_PER_TARGET then
 			target = Entity_FromID(army_target)
 		end
-		target = target or ClosestAllowed(groups, Squad_GetPosition(entry.squad), entry.track.avoid, now)
+		target = target or ClosestAllowed(groups, Squad_GetPosition(entry.squad), entry.track.avoid, now, taken)
 		if target ~= nil then
 			local id = Entity_GetID(target)
 			entry.track.target_id, entry.track.since, entry.track.health = id, now, nil
-			by_target[id] = by_target[id] or { target = target, squads = { } }
-			table.insert(by_target[id].squads, entry.squad)
+			taken[id] = (taken[id] or 0) + 1
+			table.insert(orders, { squad = entry.squad, target = target })
 		else
 			table.insert(roamers, entry.squad)
 		end
@@ -911,15 +928,14 @@ local function OrderSiegeSquads(force)
 	for _, group in ipairs(groups) do
 		EGroup_Destroy(group)
 	end
+	-- One order per squad: a group order makes them path as one formation, which jams in gaps and round walls.
 	local siege = SGroup_CreateIfNotFound("fort_siege_idle")
-	local orders = 0
-	for _, entry in pairs(by_target) do
+	local targets = { }
+	for _, order in ipairs(orders) do
 		SGroup_Clear(siege)
-		for _, squad in ipairs(entry.squads) do
-			SGroup_Add(siege, squad)
-		end
-		OrderSiege(siege, entry.target)
-		orders = orders + 1
+		SGroup_Add(siege, order.squad)
+		OrderSiege(siege, order.target)
+		targets[Entity_GetID(order.target)] = true
 	end
 	-- Every target avoided: attack-move with the infantry instead, breaking whatever stands in the way.
 	if #roamers > 0 and force.building_id ~= nil and Entity_IsValid(force.building_id) then
@@ -930,7 +946,11 @@ local function OrderSiegeSquads(force)
 		OrderArmy(siege, Entity_FromID(force.building_id))
 	end
 	SGroup_Clear(siege)
-	DebugLog(string.format("player %d -> human %d | %d siege reordered (%d stuck) at %d targets", force.attacker.index, force.target.index, #waiting, stuck_count, orders))
+	local target_count = 0
+	for _ in pairs(targets) do
+		target_count = target_count + 1
+	end
+	DebugLog(string.format("player %d -> human %d | %d siege reordered (%d stuck) at %d targets", force.attacker.index, force.target.index, #waiting, stuck_count, target_count))
 end
 
 -- The building of the last order is kept per group.

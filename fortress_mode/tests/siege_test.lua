@@ -115,7 +115,15 @@ pass(i); check("idle squad reordered, busy one left alone", #log.attacks == 1 an
 i.siege.squads[1].idle = false; by_id[10].dead = true; pass(i)
 check("target gone: the busy squad is reordered too", #log.attacks == 1 and #log.attacks[1].squads == 1 and log.attacks[1].squads[1] == 2)
 local g = force({ { id = 1, idle = true, pos = P(290) }, { id = 2, idle = true, pos = P(291) } })
-pass(g); check("squads with the same target share one order", #log.attacks == 1 and #log.attacks[1].squads == 2)
+pass(g); check("one order per squad, never a formation", #log.attacks == 2 and #log.attacks[1].squads == 1 and #log.attacks[2].squads == 1)
+reset({ { id = 10, owner = 1, type = "building", pos = P(300) }, { id = 11, owner = 1, type = "building", pos = P(340) } })
+local crowd = { } for k = 1, 5 do crowd[k] = { id = k, idle = true, pos = P(250) } end
+pass(force(crowd)); local per = { } for _, a in ipairs(log.attacks) do per[a.target] = (per[a.target] or 0) + 1 end
+check("at most 3 squads per building, the rest go to the next one", per[10] == 3 and per[11] == 2)
+local busy = force({ { id = 1, idle = false, pos = P(250) }, { id = 2, idle = false, pos = P(250) }, { id = 3, idle = false, pos = P(250) }, { id = 4, idle = true, pos = P(250) } })
+busy.siege_tracks = { [1] = { avoid = { }, target_id = 10, since = 0 }, [2] = { avoid = { }, target_id = 10, since = 0 }, [3] = { avoid = { }, target_id = 10, since = 0 } }
+pass(busy); check("squads still on a building count towards its 3", #log.attacks == 1 and log.attacks[1].target == 11)
+reset({ { id = 10, owner = 1, type = "building", pos = P(500) }, { id = 20, owner = 1, type = "wall", pos = P(300) } })
 local d = force({ { id = 1, idle = true, pos = P(290) }, { id = 2, idle = true, pos = P(495) } })
 pass(d); local t = { } for _, a in ipairs(log.attacks) do t[a.target] = a.squads[1] end
 check("each squad goes for what is closest to it", #log.attacks == 2 and t[20] == 1 and t[10] == 2)
