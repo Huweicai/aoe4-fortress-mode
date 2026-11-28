@@ -806,20 +806,6 @@ local function SiegeTargetGroups(players)
 	return groups
 end
 
-local function ClosestInGroups(groups, position)
-	local closest, closest_distance = nil, nil
-	for _, group in ipairs(groups) do
-		if EGroup_CountSpawned(group) > 0 then
-			local entity = EGroup_GetClosestEntity(group, position)
-			local distance = World_DistancePointToPoint(position, Entity_GetPosition(entity))
-			if closest == nil or distance < closest_distance then
-				closest, closest_distance = entity, distance
-			end
-		end
-	end
-	return closest
-end
-
 -- Siege is checked squad by squad, since one stuck ram should not hold up the rest. A squad gets a new target when it
 -- is idle, when its target is gone, or when it is stuck: neither moving nor hurting its target for SIEGE_STUCK_TIME.
 -- That covers a ram stopped at a wall it was not told to break, and one sent at a building it cannot reach, which
@@ -832,26 +818,29 @@ local SIEGE_MOVE_EPSILON = 3
 local SIEGE_AVOID_TIME = 120
 -- Siege queued on one building crowds round it and blocks itself, so each building takes at most this many squads.
 local SIEGE_PER_TARGET = 3
+-- At most this many siege squads get a new order per pass, the rest next pass, so no tick takes on a whole wave.
+local SIEGE_ORDERS_PER_PASS = 8
 
-local function ClosestAllowed(groups, position, avoid, now, taken)
-	local function allowed(id)
-		return (avoid[id] or 0) <= now and (taken[id] or 0) < SIEGE_PER_TARGET
-	end
-	local closest = ClosestInGroups(groups, position)
-	if closest == nil or allowed(Entity_GetID(closest)) then
-		return closest
-	end
-	-- The nearest one is avoided or full: look through them all.
-	local best, best_distance = nil, nil
+-- Every target building with its position, read from the engine once per pass and only when a squad needs it.
+local function SiegeCandidates(groups)
+	local candidates = { }
 	for _, group in ipairs(groups) do
 		EGroup_ForEach(group, function(_, _, entity)
-			if allowed(Entity_GetID(entity)) then
-				local distance = World_DistancePointToPoint(position, Entity_GetPosition(entity))
-				if best == nil or distance < best_distance then
-					best, best_distance = entity, distance
-				end
-			end
+			table.insert(candidates, { entity = entity, id = Entity_GetID(entity), position = Entity_GetPosition(entity) })
 		end)
+	end
+	return candidates
+end
+
+local function ClosestAllowed(candidates, position, avoid, now, taken)
+	local best, best_distance = nil, nil
+	for _, candidate in ipairs(candidates) do
+		if (avoid[candidate.id] or 0) <= now and (taken[candidate.id] or 0) < SIEGE_PER_TARGET then
+			local distance = World_DistancePointToPoint(position, candidate.position)
+			if best == nil or distance < best_distance then
+				best, best_distance = candidate.entity, distance
+			end
+		end
 	end
 	return best
 end
@@ -883,7 +872,7 @@ local function OrderSiegeSquads(force)
 		local track = (force.siege_tracks or { })[id] or { avoid = { }, target_id = force.building_id }
 		tracks[id] = track
 		local needs, stuck = SiegeNeedsOrder(track, squad, now)
-		if needs then
+		if needs and #waiting < SIEGE_ORDERS_PER_PASS then
 			table.insert(waiting, { squad = squad, track = track, stuck = stuck })
 			stuck_count = stuck_count + (stuck and 1 or 0)
 		end
@@ -895,6 +884,7 @@ local function OrderSiegeSquads(force)
 	end
 	local players = IsLiveEnemyHuman(force.attacker.id, force.target) and { force.target } or LiveEnemyHumans(force.attacker.id)
 	local groups = SiegeTargetGroups(players)
+	local candidates = SiegeCandidates(groups)
 	-- Squads keeping their order still hold their place at a building.
 	local taken = { }
 	local reordered = { }
@@ -915,7 +905,7 @@ local function OrderSiegeSquads(force)
 			and (taken[army_target] or 0) < SIEGE_PER_TARGET then
 			target = Entity_FromID(army_target)
 		end
-		target = target or ClosestAllowed(groups, Squad_GetPosition(entry.squad), entry.track.avoid, now, taken)
+		target = target or ClosestAllowed(candidates, Squad_GetPosition(entry.squad), entry.track.avoid, now, taken)
 		if target ~= nil then
 			local id = Entity_GetID(target)
 			entry.track.target_id, entry.track.since, entry.track.health = id, now, nil

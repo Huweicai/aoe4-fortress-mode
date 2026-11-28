@@ -137,5 +137,20 @@ pass(force({ { id = 1, idle = true, pos = P(290) } })); check("nothing of the ta
 reset({ })
 pass(force({ })); check("empty siege group: no order", #log.attacks == 0)
 
+-- cost: a whole wave needing new targets at once must stay cheap in a single tick
+do
+	local many = { }
+	for k = 1, 200 do many[k] = { id = 1000 + k, owner = 1, type = "building", pos = P(300 + k) } end
+	reset(many)
+	local calls = 0
+	local real = Entity_GetPosition
+	Entity_GetPosition = function(e) calls = calls + 1; return real(e) end
+	local wave = { } for k = 1, 20 do wave[k] = { id = k, idle = true, pos = P(250) } end
+	pass(force(wave))
+	Entity_GetPosition = real
+	check("a whole wave at once: at most 8 new orders this pass", #log.attacks == 8)
+	check("building positions read once per pass, not once per squad", calls <= 200)
+end
+
 io.write(failed == 0 and "ALL OK\n" or ("FAILED " .. failed .. "\n"))
 os.exit(failed == 0 and 0 or 1)
