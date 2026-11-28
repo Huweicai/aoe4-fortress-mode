@@ -696,6 +696,18 @@ local function QueueSpawnBatches(force, group, units, positions, order)
 	end
 end
 
+-- A wave is announced as the official modes announce arrivals: a blip in the attacker's colour on the minimap where
+-- it spawns, and a cue in the side queue with a sound, never in the middle of the screen. UI calls only change what
+-- the local player sees, so peers stay in sync.
+local WAVE_BLIP_LIFETIME = 20
+local WAVE_CUE_LIFETIME = 8
+local WAVE_CUE_SOUND = "sfx_ui_event_queue_med_priority_play"
+
+local function AnnounceWave(attacker, position, title)
+	UI_CreateMinimapBlipOnPosFrom(attacker.id, position, WAVE_BLIP_LIFETIME, "objective_battle")
+	UI_CreateEventCue(title, Loc_Empty(), "high_priority", "", WAVE_CUE_SOUND, ECV_Queue, WAVE_CUE_LIFETIME)
+end
+
 -- The turn only advances when a wave really spawns, so an AI is not skipped while survivors fill the wave.
 local function SpawnWave()
 	local alive = CountWaveUnits()
@@ -728,6 +740,7 @@ local function SpawnWave()
 	end
 	QueueSpawnBatches(force, force.siege, siege_units, positions, OrderSiege)
 	QueueSpawnBatches(force, force.army, army_units, positions, OrderArmy)
+	Guard("wave announce", AnnounceWave, player, Entity_GetPosition(town_center), elite and "精英部队来袭 · Elite wave incoming" or "敌军来袭 · Enemy wave incoming")
 	DebugLog(string.format("wave: player %d -> human %d at %s, siege=%d army=%d elite=%s, alive before=%d", player.index, force.target.index, FormatPos(positions[1]), #siege_units, #army_units, tostring(elite), alive))
 end
 
@@ -741,6 +754,7 @@ local function SpawnBonusWave(player, town_center, size)
 	local positions = SpawnPositionsAround(Entity_GetPosition(town_center))
 	local army_units = BuildArmyUnits(player.id, size, WAVE_INFANTRY, math.max(1, math.floor(Player_GetCurrentAge(player.id))))
 	QueueSpawnBatches(force, force.army, army_units, positions, OrderArmy)
+	Guard("wave announce", AnnounceWave, player, Entity_GetPosition(town_center), "敌军援兵来袭 · Enemy reinforcements incoming")
 	DebugLog(string.format("bonus wave: player %d -> human %d, army=%d", player.index, force.target.index, #army_units))
 end
 

@@ -16,7 +16,7 @@ function Modifier_Create(target, kind, mut, exclusive, factor, bp)
 	return m
 end
 function Modifier_ApplyToPlayer(m, p) table.insert(log.applied, { m = m, p = p }) end
-assert(load(io.open(path):read("a") .. "\n_T = { ReadNumber = ReadNumber, BoostMonkHealing = BoostMonkHealing, GrantUpgrades = GrantUpgrades, BuffWeapons = BuffWeapons, HUMAN_FREE_UPGRADES = HUMAN_FREE_UPGRADES, HUMAN_TREBUCHET_WEAPONS = HUMAN_TREBUCHET_WEAPONS, HUMAN_TREBUCHET_MODIFIERS = HUMAN_TREBUCHET_MODIFIERS }", "@" .. path))()
+assert(load(io.open(path):read("a") .. "\n_T = { AnnounceWave = AnnounceWave, ReadNumber = ReadNumber, BoostMonkHealing = BoostMonkHealing, GrantUpgrades = GrantUpgrades, BuffWeapons = BuffWeapons, HUMAN_FREE_UPGRADES = HUMAN_FREE_UPGRADES, HUMAN_TREBUCHET_WEAPONS = HUMAN_TREBUCHET_WEAPONS, HUMAN_TREBUCHET_MODIFIERS = HUMAN_TREBUCHET_MODIFIERS }", "@" .. path))()
 
 local failed = 0
 local function check(name, ok) io.write((ok and "PASS " or "FAIL ") .. name .. "\n"); if not ok then failed = failed + 1 end end
@@ -58,5 +58,18 @@ check("x1.75 health", _T.ReadNumber(section("o", "unit_hp_175", { "unit_hp_100",
 check("off is 0", _T.ReadNumber(section("o", "assault_every_off", { "assault_every_off", "assault_every_60" }), "o", "assault_every", 1, 120) == 0)
 check("old key falls back", _T.ReadNumber(section("o", "wave_interval_1", { "wave_interval_1" }), "o", "wave_every", 1, 60) == 60)
 check("missing option falls back", _T.ReadNumber({ }, "o", "wave_every", 1, 60) == 60)
+-- wave announcement
+do
+	local blips, cues = { }, { }
+	ECV_Queue, ECV_Title = "queue", "title"
+	function UI_CreateMinimapBlipOnPosFrom(sender, pos, life, template) table.insert(blips, { sender = sender, pos = pos, life = life, template = template }) end
+	function UI_CreateEventCue(title, desc, template, icon, sound, visibility, life) table.insert(cues, { title = title, visibility = visibility, sound = sound, life = life }) end
+	function Loc_Empty() return "" end
+	local ai = { id = "AI3" }
+	_T.AnnounceWave(ai, { x = 5 }, "敌军来袭 · Enemy wave incoming")
+	check("wave: blip in the attacker's colour where it spawns", #blips == 1 and blips[1].sender == "AI3" and blips[1].pos.x == 5 and blips[1].life > 0)
+	check("wave: cue in the side queue with a sound, not mid-screen", #cues == 1 and cues[1].visibility == "queue" and cues[1].sound ~= "" and cues[1].title:find("Enemy wave", 1, true))
+end
+
 io.write(failed == 0 and "ALL OK\n" or ("FAILED " .. failed .. "\n"))
 os.exit(failed == 0 and 0 or 1)
