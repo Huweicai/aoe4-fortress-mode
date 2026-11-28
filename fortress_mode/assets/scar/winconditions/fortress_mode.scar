@@ -95,6 +95,9 @@ local HUMAN_TREBUCHET_WEAPONS = {
 	"weapon_trebuchet_naptha_shot_mon_ha_gol",
 }
 -- Hidden: human monks heal fifteen times as fast. The rate is a player property, 7 health a second by default.
+-- Hidden: human monks have this much health, whatever their civ. They are left out of the unit health multiplier,
+-- since which of the two the engine applies first is not known.
+local HUMAN_MONK_HEALTH = 1000
 local MONK_HEAL_PROPERTY = "monk_heal_rate"
 local MONK_HEAL_FACTOR = 15
 -- Some techs may set the property again; a lower value than the one given is boosted once more.
@@ -263,6 +266,13 @@ local function BuffWeapons(player_id, weapon_names, modifiers)
 		end
 	end
 	print(string.format("[FORT] player %s: %d trebuchet weapon modifiers", tostring(player_id), applied))
+end
+
+local function SetMaximumHealth(blueprints, player_id, health)
+	for _, ebp in ipairs(blueprints) do
+		local modifier = Modifier_Create(MAT_EntityType, "health_maximum_modifier", MUT_Set, false, health, ebp)
+		Modifier_ApplyToPlayer(modifier, player_id, 0)
+	end
 end
 
 local function ApplyMultiplier(blueprints, player_id, modifier_type, factor)
@@ -1121,6 +1131,7 @@ end
 
 local _unit_blueprints = { }
 local _infantry_blueprints = { }
+local _monk_blueprints = { }
 local _defense_blueprints = { }
 local _building_blueprints = { }
 local _trebuchet_squads = { }
@@ -1128,6 +1139,9 @@ local _trebuchet_entities = { }
 
 local function CollectAllBlueprints()
 	_unit_blueprints = CollectBlueprints(BP_GetEntityBlueprintsWithType, UNIT_TYPES, function(ebp)
+		return not Entity_IsEBPOfType(ebp, "building") and not Entity_IsEBPOfType(ebp, "monk")
+	end)
+	_monk_blueprints = CollectBlueprints(BP_GetEntityBlueprintsWithType, { "monk" }, function(ebp)
 		return not Entity_IsEBPOfType(ebp, "building")
 	end)
 	_infantry_blueprints = CollectBlueprints(BP_GetEntityBlueprintsWithType, { "infantry" }, function(ebp)
@@ -1172,6 +1186,7 @@ local function SetupPlayer(player)
 		if _settings.unit_health ~= 1 then
 			Guard("unit health", ApplyMultiplier, _unit_blueprints, player.id, "health_maximum_modifier", _settings.unit_health)
 		end
+		Guard("monk health", SetMaximumHealth, _monk_blueprints, player.id, HUMAN_MONK_HEALTH)
 		if _settings.defense_health ~= 1 then
 			Guard("defense health", ApplyMultiplier, _defense_blueprints, player.id, "health_maximum_modifier", _settings.defense_health)
 		end
@@ -1185,6 +1200,7 @@ end
 local function LogSettings()
 	print(string.format("[FORT] unit_hp=%s defense_hp=%s trebuchet=%s human_pop=%d ai_pop=%d",
 		tostring(_settings.unit_health), tostring(_settings.defense_health), _settings.trebuchet, _settings.human_pop, _settings.ai_pop))
+	print(string.format("[FORT] blueprints: monks=%d", #_monk_blueprints))
 	print(string.format("[FORT] blueprints: units=%d infantry=%d defenses=%d trebuchet_squads=%d trebuchet_entities=%d",
 		#_unit_blueprints, #_infantry_blueprints, #_defense_blueprints, #_trebuchet_squads, #_trebuchet_entities))
 end

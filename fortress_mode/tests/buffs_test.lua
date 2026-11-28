@@ -16,7 +16,7 @@ function Modifier_Create(target, kind, mut, exclusive, factor, bp)
 	return m
 end
 function Modifier_ApplyToPlayer(m, p) table.insert(log.applied, { m = m, p = p }) end
-assert(load(io.open(path):read("a") .. "\n_T = { BuildSiegeUnits = BuildSiegeUnits, AnnounceWave = AnnounceWave, ReadNumber = ReadNumber, BoostMonkHealing = BoostMonkHealing, GrantUpgrades = GrantUpgrades, BuffWeapons = BuffWeapons, HUMAN_FREE_UPGRADES = HUMAN_FREE_UPGRADES, HUMAN_TREBUCHET_WEAPONS = HUMAN_TREBUCHET_WEAPONS, HUMAN_TREBUCHET_MODIFIERS = HUMAN_TREBUCHET_MODIFIERS }", "@" .. path))()
+assert(load(io.open(path):read("a") .. "\n_T = { SetMaximumHealth = SetMaximumHealth, BuildSiegeUnits = BuildSiegeUnits, AnnounceWave = AnnounceWave, ReadNumber = ReadNumber, BoostMonkHealing = BoostMonkHealing, GrantUpgrades = GrantUpgrades, BuffWeapons = BuffWeapons, HUMAN_FREE_UPGRADES = HUMAN_FREE_UPGRADES, HUMAN_TREBUCHET_WEAPONS = HUMAN_TREBUCHET_WEAPONS, HUMAN_TREBUCHET_MODIFIERS = HUMAN_TREBUCHET_MODIFIERS }", "@" .. path))()
 
 local failed = 0
 local function check(name, ok) io.write((ok and "PASS " or "FAIL ") .. name .. "\n"); if not ok then failed = failed + 1 end end
@@ -81,6 +81,17 @@ do
 	no_bombard = true
 	c = count(_T.BuildSiegeUnits(1))
 	check("a civ without bombards keeps all its rams", c.scar_ram == 2 and c.scar_bombard == nil)
+end
+
+-- human monks
+do
+	MUT_Set = "MUT_Set"
+	local made = { }
+	function Modifier_Create(target, kind, mut, exclusive, value, bp) local m = { kind = kind, mut = mut, value = value, bp = bp }; table.insert(made, m); return m end
+	local applied = { }
+	function Modifier_ApplyToPlayer(m, p) table.insert(applied, { m = m, p = p }) end
+	_T.SetMaximumHealth({ "monk_eng", "monk_chi" }, "P1", 1000)
+	check("monks: health set to 1000, not multiplied", #applied == 2 and made[1].kind == "health_maximum_modifier" and made[1].mut == "MUT_Set" and made[1].value == 1000 and applied[1].p == "P1")
 end
 
 io.write(failed == 0 and "ALL OK\n" or ("FAILED " .. failed .. "\n"))
