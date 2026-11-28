@@ -76,9 +76,11 @@ local WAVE_SPAWN_POINTS = 8
 -- Siege comes on top of the wave size and grows by one of each per wave, up to a cap.
 local WAVE_RAM_COUNT = 2
 local WAVE_RAM_MAX = 18
--- Age IV bombards; a civ without them sends no bombard.
+-- Age IV bombards; a civ without them keeps all its rams.
 local WAVE_BOMBARD_COUNT = 1
 local WAVE_BOMBARD_MAX = 10
+-- Share of the rams that come as bombards instead.
+local WAVE_RAMS_AS_BOMBARDS = 0.5
 -- Hidden: every AI's infantry has this much more health.
 local AI_INFANTRY_HEALTH = 1.5
 -- Hidden: humans start with the first blacksmith armor techs, +1 melee and +1 ranged armor on non-siege units.
@@ -476,13 +478,17 @@ local _wave_number = 0
 
 local function BuildSiegeUnits(player_id)
 	local units = { }
+	local rams = math.min(WAVE_RAM_COUNT + _wave_number, WAVE_RAM_MAX)
+	local bombards = math.min(WAVE_BOMBARD_COUNT + _wave_number, WAVE_BOMBARD_MAX)
 	local ram = ResolveSquad({ "scar_ram" }, player_id)
-	if ram ~= nil then
-		AddSquads(units, ram, math.min(WAVE_RAM_COUNT + _wave_number, WAVE_RAM_MAX))
-	end
 	local bombard = ResolveSquad({ "scar_bombard", "scar_age4" }, player_id)
 	if bombard ~= nil then
-		AddSquads(units, bombard, math.min(WAVE_BOMBARD_COUNT + _wave_number, WAVE_BOMBARD_MAX))
+		local swapped = math.floor(rams * WAVE_RAMS_AS_BOMBARDS)
+		rams, bombards = rams - swapped, bombards + swapped
+		AddSquads(units, bombard, bombards)
+	end
+	if ram ~= nil then
+		AddSquads(units, ram, rams)
 	end
 	return units
 end

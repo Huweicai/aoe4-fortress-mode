@@ -16,7 +16,7 @@ function Modifier_Create(target, kind, mut, exclusive, factor, bp)
 	return m
 end
 function Modifier_ApplyToPlayer(m, p) table.insert(log.applied, { m = m, p = p }) end
-assert(load(io.open(path):read("a") .. "\n_T = { AnnounceWave = AnnounceWave, ReadNumber = ReadNumber, BoostMonkHealing = BoostMonkHealing, GrantUpgrades = GrantUpgrades, BuffWeapons = BuffWeapons, HUMAN_FREE_UPGRADES = HUMAN_FREE_UPGRADES, HUMAN_TREBUCHET_WEAPONS = HUMAN_TREBUCHET_WEAPONS, HUMAN_TREBUCHET_MODIFIERS = HUMAN_TREBUCHET_MODIFIERS }", "@" .. path))()
+assert(load(io.open(path):read("a") .. "\n_T = { BuildSiegeUnits = BuildSiegeUnits, AnnounceWave = AnnounceWave, ReadNumber = ReadNumber, BoostMonkHealing = BoostMonkHealing, GrantUpgrades = GrantUpgrades, BuffWeapons = BuffWeapons, HUMAN_FREE_UPGRADES = HUMAN_FREE_UPGRADES, HUMAN_TREBUCHET_WEAPONS = HUMAN_TREBUCHET_WEAPONS, HUMAN_TREBUCHET_MODIFIERS = HUMAN_TREBUCHET_MODIFIERS }", "@" .. path))()
 
 local failed = 0
 local function check(name, ok) io.write((ok and "PASS " or "FAIL ") .. name .. "\n"); if not ok then failed = failed + 1 end end
@@ -69,6 +69,18 @@ do
 	_T.AnnounceWave(ai, { x = 5 }, "敌军来袭 · Enemy wave incoming")
 	check("wave: blip in the attacker's colour where it spawns", #blips == 1 and blips[1].sender == "AI3" and blips[1].pos.x == 5 and blips[1].life > 0)
 	check("wave: cue in the side queue with a sound, not mid-screen", #cues == 1 and cues[1].visibility == "queue" and cues[1].sound ~= "" and cues[1].title:find("Enemy wave", 1, true))
+end
+
+-- siege of the first wave: half the rams come as bombards
+do
+	local no_bombard = false
+	function Cardinal_ConvertTypeToSquadBlueprint(types) if types[1] == "scar_bombard" and no_bombard then return nil end return types[1] end
+	local function count(units) local c = { } for _, u in ipairs(units) do c[u.sbp] = (c[u.sbp] or 0) + u.numSquads end return c end
+	local c = count(_T.BuildSiegeUnits(1))
+	check("first wave: 1 ram and 2 bombards instead of 2 and 1", c.scar_ram == 1 and c.scar_bombard == 2)
+	no_bombard = true
+	c = count(_T.BuildSiegeUnits(1))
+	check("a civ without bombards keeps all its rams", c.scar_ram == 2 and c.scar_bombard == nil)
 end
 
 io.write(failed == 0 and "ALL OK\n" or ("FAILED " .. failed .. "\n"))

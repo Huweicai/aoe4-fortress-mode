@@ -29,7 +29,7 @@
 
 - 敌方 AI 轮流出兵，从各自的**主城镇中心**旁出发，每波随机选一位真人玩家作为目标。
 - 步兵是武士、长矛兵和弓箭手，随 AI 的时代升级。
-- 攻城器械不占步兵名额：首波 2 辆冲车 + 1 门手推炮，之后每波各多 1，最多 18 车 + 10 炮。
+- 攻城器械不占步兵名额：冲车和手推炮一波比一波多：首波 1 车 + 2 炮，后期最多 9 车 + 19 炮。
 - 每第 5 波是**精英波**：骑士、武士、手炮兵、弩手，全是四本满级兵，不管 AI 在几本。
 - 上一波活下来的兵会和新一波一起再冲一次。残兵太多时，新一波会相应减少，场上不会无限堆兵。
 - 攻破一家 AI 的主城镇中心，它就再也派不出增援。
@@ -76,7 +76,7 @@ This is a **game mode**: pick "Fortress Mode" in a custom lobby. Every standard 
 
 - Enemy AIs take turns. Each wave leaves from the AI's **main town center** and targets a random human player.
 - Infantry are men-at-arms, spearmen and archers, upgraded with the AI's age.
-- Siege comes on top of the infantry: 2 rams and 1 bombard in the first wave, one more of each every wave, up to 18 rams and 10 bombards.
+- Siege comes on top of the infantry: more rams and bombards every wave: 1 ram and 2 bombards in the first, up to 9 rams and 19 bombards later on.
 - Every 5th wave is an **elite wave**: knights, men-at-arms, handcannoneers and crossbowmen, all Age IV, whatever the AI's age.
 - Survivors of earlier waves charge again together with the new one. When too many survive, the next wave is smaller, so units never pile up without limit.
 - Destroy an AI's main town center and it can send no more waves.
